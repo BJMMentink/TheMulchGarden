@@ -4,7 +4,12 @@ export const APP_CONFIG = Object.freeze({
   maxInterestRating: 5,
   minInterestRating: 1,
   defaultSection: 'dashboard',
-  onboardingVersion: 1,
+  onboardingVersion: 2,
+  onboardingOptionLimit: 6,
+  onboardingPopularityWeight: 1,
+  onboardingMatchBonus: 3,
+  onboardingDefaultRating: 3,
+  onboardingDefaultCreatorRating: 5,
   maxTodoTitleLength: 120,
   maxTodoTags: 8,
   maxTodoTagLength: 32,
@@ -28,12 +33,4 @@ export const INTEREST_CATEGORIES = Object.freeze([
   { id: 'topic', label: 'Topic' },
   { id: 'game', label: 'Game' },
   { id: 'keyword', label: 'Keyword' },
-]);
-
-export const ONBOARDING_STEPS = Object.freeze([
-  { id: 'creators', title: 'Creators you enjoy', prompt: 'Choose a few voices you want close to the surface.', category: 'creator', options: ['Nuxinor', 'Luke Stephens', 'Asmongold', 'Other creator'] },
-  { id: 'gaming', title: 'Gaming', prompt: 'What kinds of games should shape your feed?', category: 'game', options: ['Action RPGs', 'Competitive games', 'Indie games', 'Game design'] },
-  { id: 'technology', title: 'Technology & AI', prompt: 'Pick the areas that are worth your attention.', category: 'topic', options: ['Artificial intelligence', 'Software development', 'Creative tools', 'None for now'] },
-  { id: 'entertainment', title: 'Entertainment', prompt: 'Add a little signal to your downtime.', category: 'topic', options: ['Movies', 'TV', 'Anime', 'Music'] },
-  { id: 'professional', title: 'Professional interests', prompt: 'What will help your work grow?', category: 'topic', options: ['Teaching', 'Art education', 'Design', 'Small business'] },
 ]);

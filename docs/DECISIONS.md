@@ -37,3 +37,22 @@
 **Decision:** Future YouTube monitoring must use public/explicitly configured sources and user feedback.
 
 **Why:** The product vision explicitly avoids private watch-history access and should remain understandable and portable.
+# Decision: catalog-driven onboarding
+
+## Status
+
+Accepted for V1.
+
+## Decision
+
+The first-launch sequence uses a small local catalog of public creators, games, and topics. Each step ranks candidates from configured popularity plus tag overlap with saved interests and choices already made in the sequence. The catalog is intentionally editable source code and does not require private YouTube history, a third-party API, or paid infrastructure.
+
+## Why
+
+This gives the user useful starting choices immediately while keeping startup fast, deterministic, free, and testable. The ranking seam can later consume public provider data without coupling the UI to YouTube or another service.
+
+## Consequences
+
+- Existing interests and prior onboarding selections remain visible and influence later steps.
+- Catalog popularity is a refreshable starter signal, not a promise of live rankings.
+- Feedback controls and provider adapters remain future work.

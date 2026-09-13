@@ -4,6 +4,9 @@
 
 - [x] The project exists at `F:\TheMulchGarden` and is a Git repository.
 - [x] A fresh launch shows a curated first-launch onboarding flow.
+- [x] Creator and gaming onboarding choices come from a reusable catalog and include public popular starting points.
+- [x] Later onboarding choices are ranked from the user's existing interests and earlier selections.
+- [x] Onboarding selections persist while moving forward or backward through the sequence.
 - [x] Onboarding covers creators, gaming, technology/AI, entertainment, and professional interests.
 - [x] Onboarding writes to the same Interest Engine data model used by the Interests view.
 - [x] Nuxinor, Luke Stephens, and Asmongold are seeded at 5/5.

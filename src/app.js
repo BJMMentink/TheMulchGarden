@@ -1,5 +1,6 @@
-import { APP_CONFIG, INTEREST_CATEGORIES, ONBOARDING_STEPS, SECTIONS, USER_ROLES } from './config.js';
+import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS, USER_ROLES } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
+import { getOnboardingSteps, onboardingRating } from './interest-catalog.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
 import { createAdminUser, getCurrentUser, loadAdminUsers, loadMembers, loadState, login, logout, saveState, updateAccount } from './storage.js';
 
@@ -107,21 +108,22 @@ function render() {
   </main><nav class="bottom-nav" aria-label="Primary navigation">${sections.map((item) => `<button data-nav="${item.id}" class="nav-item ${item.id === section ? 'is-selected' : ''}"><span class="nav-icon">${item.icon}</span><span>${item.label}</span></button>`).join('')}</nav><div id="modal-root"></div>`;
   setSection(section);
   bindEvents();
-  if (!state.onboarding.completed) renderOnboarding(0, {});
+  if (!state.onboarding.completed || state.onboarding.version < APP_CONFIG.onboardingVersion) renderOnboarding(0, {});
 }
 
 function renderOnboarding(stepIndex, selections) {
-  const step = ONBOARDING_STEPS[stepIndex];
-  const isLast = stepIndex === ONBOARDING_STEPS.length - 1;
-  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div class="progress-line"><span style="width: ${((stepIndex + 1) / ONBOARDING_STEPS.length) * 100}%"></span></div><div class="modal-topline"><span class="eyebrow">Set up your signal · ${stepIndex + 1} of ${ONBOARDING_STEPS.length}</span><button class="text-button" data-action="skip-onboarding">Skip for now</button></div><h2 id="onboarding-title">${step.title}</h2><p>${step.prompt}</p><div class="choice-grid">${step.options.map((option) => `<button class="choice ${selections[option] ? 'is-chosen' : ''}" data-choice="${escapeHtml(option)}"><span>${escapeHtml(option)}</span><span class="choice-check">${selections[option] ? '✓' : '+'}</span></button>`).join('')}</div><div class="modal-actions"><button class="button button-quiet" data-action="onboarding-back" ${stepIndex === 0 ? 'disabled' : ''}>Back</button><button class="button" data-action="onboarding-next">${isLast ? 'Finish setup' : 'Continue'}</button></div></section></div>`;
+  const steps = getOnboardingSteps({ interests: state.interests, selections });
+  const step = steps[stepIndex];
+  const isLast = stepIndex === steps.length - 1;
+  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div class="progress-line"><span style="width: ${((stepIndex + 1) / steps.length) * 100}%"></span></div><div class="modal-topline"><span class="eyebrow">Shape your signal · ${stepIndex + 1} of ${steps.length}</span><button class="text-button" data-action="skip-onboarding">Skip for now</button></div><h2 id="onboarding-title">${step.title}</h2><p>${step.prompt}</p><div class="choice-grid">${step.options.map((option) => `<button class="choice ${selections[option] ? 'is-chosen' : ''}" data-choice="${escapeHtml(option)}"><span>${escapeHtml(option)}</span><span class="choice-check">${selections[option] ? '✓' : '+'}</span></button>`).join('')}</div><div class="modal-actions"><button class="button button-quiet" data-action="onboarding-back" ${stepIndex === 0 ? 'disabled' : ''}>Back</button><button class="button" data-action="onboarding-next">${isLast ? 'Finish setup' : 'Continue'}</button></div></section></div>`;
   document.querySelectorAll('[data-choice]').forEach((button) => button.addEventListener('click', () => { selections[button.dataset.choice] = !selections[button.dataset.choice]; button.classList.toggle('is-chosen', selections[button.dataset.choice]); button.querySelector('.choice-check').textContent = selections[button.dataset.choice] ? '✓' : '+'; }));
   document.querySelector('[data-action="onboarding-next"]').addEventListener('click', () => {
-    Object.entries(selections).filter(([, selected]) => selected).forEach(([name]) => { if (!state.interests.some((interest) => interest.name.toLocaleLowerCase() === name.toLocaleLowerCase())) state.interests.push(createInterest({ name, category: step.category, rating: step.category === 'creator' ? 5 : 3, source: 'onboarding' })); });
+    step.options.filter((name) => selections[name]).forEach((name) => { if (!state.interests.some((interest) => interest.name.toLocaleLowerCase() === name.toLocaleLowerCase())) state.interests.push(createInterest({ name, category: step.category, rating: onboardingRating(name, step.category), source: 'onboarding' })); });
     if (isLast) { state.onboarding = { completed: true, version: APP_CONFIG.onboardingVersion }; saveState(state); render(); return; }
-    renderOnboarding(stepIndex + 1, {});
+    renderOnboarding(stepIndex + 1, selections);
   });
   document.querySelector('[data-action="skip-onboarding"]').addEventListener('click', () => { state.onboarding = { completed: true, version: APP_CONFIG.onboardingVersion }; saveState(state); render(); });
-  document.querySelector('[data-action="onboarding-back"]').addEventListener('click', () => { if (stepIndex > 0) renderOnboarding(stepIndex - 1, {}); });
+  document.querySelector('[data-action="onboarding-back"]').addEventListener('click', () => { if (stepIndex > 0) renderOnboarding(stepIndex - 1, selections); });
 }
 
 function bindEvents() {

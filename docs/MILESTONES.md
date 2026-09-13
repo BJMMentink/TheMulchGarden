@@ -16,7 +16,7 @@
 ## Milestone 2 — Interest Engine and onboarding (complete)
 
 - Add validated interest creation and ratings.
-- Add progressive curated onboarding.
+- Add progressive catalog-driven onboarding with selection-aware recommendations.
 - Add combined creator/topic scoring and feedback interface primitives.
 
 ## Milestone 3 — Hardening (next)

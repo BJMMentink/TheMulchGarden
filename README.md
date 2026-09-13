@@ -21,7 +21,7 @@ Sign in with the provisioned local `Ben` account using the temporary password `a
 ## Current V1
 
 - MVC backend with JSON API routes, server-side user data, secure session cookies, and scrypt password hashing.
-- Curated first-launch onboarding for creators, gaming, technology/AI, entertainment, and professional interests.
+- Dynamic first-launch onboarding for creators, gaming, technology/AI, entertainment, and professional interests. Starter choices are ranked from a small public catalog using popularity plus the user's selections.
 - Seeded creator preferences: Nuxinor 5/5, Luke Stephens 5/5, and Asmongold 5/5.
 - Add and rate creators, topics, games, and keywords.
 - Personal and professional projects with lightweight todo lists for SaberDueler and GMCHE art class.
