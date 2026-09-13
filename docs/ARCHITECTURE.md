@@ -56,7 +56,7 @@ Future integrations should adapt external data into a stable content object (`id
 
 ## Security baseline
 
-- Passwords use Node's `crypto.scrypt` with a random salt; plaintext passwords are never persisted.
+- Passwords use Node's `crypto.scrypt` with a random salt; plaintext passwords are never persisted. The current private-app policy accepts 4–200 characters.
 - Sessions use high-entropy random tokens. Only a SHA-256 digest is stored server-side.
 - Public registration is disabled. Accounts are provisioned server-side and the system is reserved for two known accounts.
 - Session cookies are `HttpOnly` and `SameSite=Lax`; production enables `Secure` cookies.

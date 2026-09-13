@@ -16,7 +16,7 @@ Open <http://127.0.0.1:4173>. Run the unit tests with:
 node --test
 ```
 
-Sign in with the provisioned local `Ben` account using the temporary password `adm1n`, then change it immediately from Account settings. Usernames, password hashes, sessions, and application data are stored in the ignored `data/` directory. Passwords are never stored in plaintext, and public registration is disabled. A fresh clone should set `BOOTSTRAP_PASSWORD_HASH` to a locally generated hash before first launch; the hash is intentionally not in this public repository.
+Sign in with the provisioned local `Ben` account using the temporary password `adm1n`, then change it from Account settings. Passwords must be at least 4 characters for this private, low-risk personal app and are still salted and hashed; they are never stored in plaintext. Usernames, password hashes, sessions, and application data are stored in the ignored `data/` directory, and public registration is disabled. A fresh clone should set `BOOTSTRAP_PASSWORD_HASH` to a locally generated hash before first launch; the hash is intentionally not in this public repository.
 
 ## Current V1
 

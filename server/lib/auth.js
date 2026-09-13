@@ -5,7 +5,7 @@ const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;
 
 export async function hashPassword(password) {
-  if (typeof password !== 'string' || password.length < 12 || password.length > 200) throw new Error('Password must be 12–200 characters.');
+  if (typeof password !== 'string' || password.length < 4 || password.length > 200) throw new Error('Password must be 4–200 characters.');
   const salt = randomBytes(16);
   const key = await scrypt(password, salt, KEY_LENGTH, { N: 16_384, r: 8, p: 1 });
   return `scrypt:${salt.toString('base64url')}:${Buffer.from(key).toString('base64url')}`;
@@ -25,4 +25,3 @@ export const tokenDigest = (token) => createHash('sha256').update(token).digest(
 export function parseCookies(header = '') { return Object.fromEntries(header.split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter(([key, value]) => key && value)); }
 export function sessionCookie(token, secure, maxAge) { return `mg_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? '; Secure' : ''}`; }
 export const expiredSessionCookie = () => 'mg_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
-

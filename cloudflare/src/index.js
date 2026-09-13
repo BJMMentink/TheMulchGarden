@@ -58,7 +58,7 @@ async function derive(password, salt, iterations = PASSWORD_ITERATIONS) {
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, PASSWORD_KEY_BITS));
 }
 async function createPasswordHash(password, enforcePolicy = true) {
-  if (typeof password !== 'string' || password.length > 200 || (enforcePolicy && password.length < 12)) throw new Error('Password must be 12–200 characters.');
+  if (typeof password !== 'string' || password.length > 200 || (enforcePolicy && password.length < 4)) throw new Error('Password must be 4–200 characters.');
   const salt = crypto.getRandomValues(new Uint8Array(16));
   return `pbkdf2-sha256:${PASSWORD_ITERATIONS}:${b64(salt)}:${b64(await derive(password, salt))}`;
 }
