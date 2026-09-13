@@ -1,0 +1,12 @@
+name = "the-mulch-garden-api"
+main = "src/index.js"
+compatibility_date = "2026-09-13"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "the-mulch-garden"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+FRONTEND_ORIGIN = "https://bjmmentink.github.io"
+SESSION_DAYS = "14"

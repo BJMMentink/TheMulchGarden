@@ -1,0 +1,14 @@
+{
+  "name": "the-mulch-garden",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight MVC personal productivity dashboard with secure local-first backend storage.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
