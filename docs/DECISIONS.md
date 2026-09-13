@@ -75,3 +75,27 @@ An explicit game is easier to revisit, less disruptive at startup, and creates a
 - Existing users do not have to complete a blocking onboarding modal.
 - Every answer is user-visible and editable through Interests.
 - The game catalog can expand without changing the backend state API.
+
+# Decision: restrained dark-red visual system
+
+## Status
+
+Accepted for V1.
+
+## Decision
+
+The interface uses near-black backgrounds and surfaces with a restrained dark-red accent system. Visual values are centralized in CSS custom properties so a future redesign can change the appearance without changing feature logic.
+
+## Why
+
+The product should feel sleek, quiet, and liminal while remaining fast and readable on small screens. The implementation follows the browser's `color-scheme` guidance and uses WCAG 2.2 contrast guidance as the accessibility target:
+
+- https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/color-scheme
+- https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/color-scheme
+- https://www.w3.org/TR/wcag/
+
+## Consequences
+
+- Dark form controls and browser UI are requested consistently through HTML and CSS metadata.
+- Game themes still vary subtly by preference category, but remain within the same dark-red visual family.
+- Motion and decorative effects remain intentionally limited to preserve low resource usage.
