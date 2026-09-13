@@ -119,14 +119,24 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
 .game-page { display: grid; gap: var(--space-3); }
 .game-intro, .game-complete, .game-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
 .game-intro { grid-template-columns: auto 1fr; align-items: start; }
+.game-theme-gaming { --game-accent: #766197; --game-accent-soft: #eee8f6; }
+.game-theme-technology { --game-accent: #39718a; --game-accent-soft: #e2f0f4; }
+.game-theme-creative { --game-accent: #a26c55; --game-accent-soft: #f5e9e1; }
+.game-theme-professional { --game-accent: #4e8661; --game-accent-soft: #e3f0e5; }
+.game-theme-everyday { --game-accent: #a27b3f; --game-accent-soft: #f5eedf; }
+.game-theme-gaming, .game-theme-technology, .game-theme-creative, .game-theme-professional, .game-theme-everyday { border-top: 0.3rem solid var(--game-accent); }
 .game-intro h3, .game-complete h3, .game-card h3 { margin-top: var(--space-1); }
 .game-intro p, .game-complete p, .game-note { max-width: 42rem; }
 .game-intro .button, .game-complete .button { justify-self: start; }
+.game-theme-summary { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--game-accent-soft); }
+.game-theme-summary strong { color: var(--game-accent); }
+.game-theme-summary p { font-size: 0.86rem; }
 .game-progress { display: grid; gap: var(--space-2); }
 .game-progress .progress-line { margin: 0; }
+.game-card .progress-line span { background: var(--game-accent); }
 .answer-grid { display: grid; gap: var(--space-2); }
 .answer-choice { min-height: 3.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0.8rem 0.9rem; background: var(--color-surface); color: var(--color-text); text-align: left; }
-.answer-choice:hover, .answer-choice:focus-visible { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary-dark); }
+.answer-choice:hover, .answer-choice:focus-visible { border-color: var(--game-accent); background: var(--game-accent-soft); color: var(--game-accent); }
 .game-note { font-size: 0.82rem; }
 .memory-panel { display: grid; gap: var(--space-3); padding: var(--space-4); }
 .memory-list { display: grid; gap: var(--space-3); }

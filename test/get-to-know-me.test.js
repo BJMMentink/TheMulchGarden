@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGetToKnowMeState, getCurrentQuestion, getQuestions, recordAnswer, startRound } from '../src/get-to-know-me.js';
+import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, getQuestions, recordAnswer, startRound } from '../src/get-to-know-me.js';
 
 test('Get to know me starts with exactly twenty questions', () => {
   const game = startRound(createGetToKnowMeState(), [{ name: 'Nuxinor', category: 'creator', rating: 5 }]);
@@ -29,4 +29,9 @@ test('the next round avoids the immediately previous questions', () => {
   assert.equal(secondRound.roundQuestionIds.length, 20);
   assert.ok(secondRound.roundQuestionIds.every((id) => !firstIds.has(id)));
   assert.ok(getQuestions().length >= 40);
+});
+
+test('the game theme follows the strongest preference signals', () => {
+  assert.equal(getGameTheme([{ name: 'Artificial intelligence', category: 'topic', rating: 5 }]).id, 'technology');
+  assert.equal(getGameTheme([{ name: 'Design', category: 'topic', rating: 5 }]).id, 'creative');
 });

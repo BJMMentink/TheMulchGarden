@@ -1,6 +1,6 @@
 import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS, USER_ROLES } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
-import { createGetToKnowMeState, getCurrentQuestion, recordAnswer, startRound } from './get-to-know-me.js';
+import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer, startRound } from './get-to-know-me.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
 import { createAdminUser, getCurrentUser, loadAdminUsers, loadMembers, loadState, login, logout, saveState, updateAccount } from './storage.js';
 
@@ -70,11 +70,13 @@ function suggestionCards() {
 
 function getToKnowMeView() {
   const game = state.games.getToKnowMe;
-  if (!game.currentRound || !game.roundQuestionIds.length) return `<article class="card game-intro"><span class="card-icon">◇</span><div><span class="eyebrow">First game</span><h3>Get to know me</h3><p>Play twenty quick questions. Your likes and dislikes become editable Interest Engine signals that make future rounds more personal.</p><button class="button" data-action="start-game">Start round one</button></div></article>`;
+  const theme = getGameTheme(state.interests);
+  const themeSummary = `<div class="game-theme-summary"><span class="eyebrow">Current tone</span><strong>${escapeHtml(theme.label)}</strong><p>${escapeHtml(theme.description)}</p></div>`;
+  if (!game.currentRound || !game.roundQuestionIds.length) return `<article class="card game-intro game-theme-${theme.id}"><span class="card-icon">◇</span><div><span class="eyebrow">First game</span><h3>Get to know me</h3><p>Play twenty quick questions. Your likes and dislikes become editable Interest Engine signals that make future rounds more personal.</p>${themeSummary}<button class="button" data-action="start-game">Start round one</button></div></article>`;
   const question = getCurrentQuestion(game);
-  if (!question) return `<article class="card game-complete"><span class="eyebrow">Round ${game.currentRound} complete</span><h3>You gave the garden more signal.</h3><p>Your answers are saved. Start another round later for a different set of questions shaped by what you have already shared.</p><button class="button" data-action="start-game">Start another round</button></article>`;
+  if (!question) return `<article class="card game-complete game-theme-${theme.id}"><span class="eyebrow">Round ${game.currentRound} complete</span><h3>You gave the garden more signal.</h3><p>Your answers are saved. Start another round later for a different set of questions shaped by what you have already shared.</p>${themeSummary}<button class="button" data-action="start-game">Start another round</button></article>`;
   const answeredCount = game.questionIndex;
-  return `<article class="card game-card"><div class="game-progress"><div class="form-heading"><span class="eyebrow">Round ${game.currentRound}</span><span class="eyebrow">Question ${answeredCount + 1} of ${APP_CONFIG.getToKnowMeQuestionCount}</span></div><div class="progress-line"><span style="width: ${(answeredCount / APP_CONFIG.getToKnowMeQuestionCount) * 100}%"></span></div></div><span class="eyebrow">What do you think?</span><h3>${escapeHtml(question.prompt)}</h3><div class="answer-grid">${question.options.map((option) => `<button class="answer-choice" data-game-answer="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join('')}</div><p class="game-note">Your answer updates your editable interests. You can change or remove anything later.</p></article>`;
+  return `<article class="card game-card game-theme-${theme.id}"><div class="game-progress"><div class="form-heading"><span class="eyebrow">Round ${game.currentRound} · ${escapeHtml(theme.label)}</span><span class="eyebrow">Question ${answeredCount + 1} of ${APP_CONFIG.getToKnowMeQuestionCount}</span></div><div class="progress-line"><span style="width: ${(answeredCount / APP_CONFIG.getToKnowMeQuestionCount) * 100}%"></span></div></div><span class="eyebrow">What do you think?</span><h3>${escapeHtml(question.prompt)}</h3><div class="answer-grid">${question.options.map((option) => `<button class="answer-choice" data-game-answer="${escapeHtml(option.id)}">${escapeHtml(option.label)}</button>`).join('')}</div><p class="game-note">Your answer updates your editable interests. You can change or remove anything later.</p></article>`;
 }
 
 function applyGameAnswer(answer) {

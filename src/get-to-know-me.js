@@ -57,6 +57,14 @@ const QUESTIONS = Object.freeze(QUESTION_SUBJECTS.map((subject) => ({
   options: PREFERENCE_OPTIONS.map((option) => ({ ...option, interestName: subject.interestName, category: subject.category })),
 })));
 
+const GAME_THEMES = Object.freeze([
+  { id: 'gaming', label: 'Playful signal', description: 'Your map currently leans toward games, creators, and interactive worlds.', signals: ['creator', 'game', 'gaming', 'rpg', 'commentary'] },
+  { id: 'technology', label: 'Curious signal', description: 'Your map currently leans toward technology, tools, and figuring out how things work.', signals: ['technology', 'software', 'ai', 'artificial', 'intelligence', 'hardware', 'science'] },
+  { id: 'creative', label: 'Making signal', description: 'Your map currently leans toward art, design, stories, and making things.', signals: ['art', 'design', 'creative', 'music', 'animation', 'story'] },
+  { id: 'professional', label: 'Growing signal', description: 'Your map currently leans toward teaching, planning, and useful work.', signals: ['professional', 'teaching', 'education', 'planning', 'business'] },
+  { id: 'everyday', label: 'Everyday signal', description: 'Your map is leaving room for practical interests and new directions.', signals: ['home', 'health', 'routine', 'hobby', 'travel', 'cooking'] },
+]);
+
 function tokens(values) {
   return new Set(values.flatMap((value) => normalise(value).split(/[^a-z0-9]+/).filter(Boolean)));
 }
@@ -67,6 +75,16 @@ function questionScore(question, interests) {
     ...interests.map((interest) => interest.category),
   ]);
   return question.tags.filter((tag) => tokens([tag]).values().some((token) => signals.has(token))).length;
+}
+
+export function getGameTheme(interests = []) {
+  const interestTokens = tokens([
+    ...interests.map((interest) => interest.name),
+    ...interests.map((interest) => interest.category),
+  ]);
+  return GAME_THEMES
+    .map((theme, order) => ({ theme, order, score: theme.signals.filter((signal) => interestTokens.has(signal)).length }))
+    .sort((left, right) => right.score - left.score || left.order - right.order)[0].theme;
 }
 
 export function createGetToKnowMeState() {

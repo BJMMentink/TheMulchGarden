@@ -22,6 +22,7 @@ Sign in with the provisioned local `Ben` account using the temporary password `a
 
 - MVC backend with JSON API routes, server-side user data, secure session cookies, and scrypt password hashing.
 - A Games tab with the first game, Get to know me: twenty-question rounds that progressively build editable interest signals.
+- Get to know me uses a light preference-based tone and accent that updates as the interest map grows.
 - Seeded creator preferences: Nuxinor 5/5, Luke Stephens 5/5, and Asmongold 5/5.
 - Add and rate creators, topics, games, and keywords.
 - Personal and professional projects with lightweight todo lists for SaberDueler and GMCHE art class.

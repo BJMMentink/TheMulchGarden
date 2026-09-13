@@ -7,6 +7,7 @@
 - [x] Get to know me presents exactly twenty questions per round, one at a time.
 - [x] Answers are stored in the per-user state and update the shared editable Interest Engine data.
 - [x] Later rounds use saved interests to tailor question ordering and avoid the immediately previous round.
+- [x] The game’s light visual tone and wording reflect the current strongest preference signals.
 - [x] Nuxinor, Luke Stephens, and Asmongold are seeded at 5/5.
 - [x] Users can add and rate interests in all four supported categories.
 - [x] SaberDueler and GMCHE art class are visible as separate projects.

@@ -61,7 +61,7 @@ Todos are a top-level shared collection so tasks can belong to a project without
 
 ### Get to know me
 
-`src/get-to-know-me.js` owns the question catalog and game state transitions. A round selects twenty questions using tag overlap with saved interests, records each answer, and avoids the immediately previous round when another round starts. The view applies each answer to the shared `interests` collection, so likes and dislikes remain editable in the Interests tab. The question catalog is local, deterministic, and free; it does not call YouTube or inspect private watch history.
+`src/get-to-know-me.js` owns the question catalog, game state transitions, and a small preference-to-theme mapping. A round selects twenty questions using tag overlap with saved interests, records each answer, and avoids the immediately previous round when another round starts. The view applies each answer to the shared `interests` collection, so likes and dislikes remain editable in the Interests tab. The current theme is presentation-safe domain output rather than raw CSS logic, allowing a visual redesign later. The question catalog is local, deterministic, and free; it does not call YouTube or inspect private watch history.
 
 Future integrations should adapt external data into a stable content object (`id`, `creator`, `topic`, `title`, `tags`) and call the engine. The engine should not call Gmail, YouTube, or calendar APIs directly.
 
