@@ -56,11 +56,13 @@ async function derive(password, salt, iterations = PASSWORD_ITERATIONS) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, PASSWORD_KEY_BITS));
 }
-async function hashPassword(password) {
-  if (typeof password !== 'string' || password.length < 12 || password.length > 200) throw new Error('Password must be 12–200 characters.');
+async function createPasswordHash(password, enforcePolicy = true) {
+  if (typeof password !== 'string' || password.length > 200 || (enforcePolicy && password.length < 12)) throw new Error('Password must be 12–200 characters.');
   const salt = crypto.getRandomValues(new Uint8Array(16));
   return `pbkdf2-sha256:${PASSWORD_ITERATIONS}:${b64(salt)}:${b64(await derive(password, salt))}`;
 }
+async function hashPassword(password) { return createPasswordHash(password, true); }
+async function hashBootstrapPassword(password) { return createPasswordHash(password, false); }
 async function verifyPassword(password, encoded) {
   try {
     const [scheme, iterationText, saltText, keyText] = String(encoded).split(':');
@@ -80,13 +82,16 @@ function expiredCookie() { return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure;
 function userId() { return crypto.randomUUID(); }
 
 async function ensureBootstrap(env) {
-  const row = await env.DB.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').bind('Ben').first();
-  if (!row && env.BOOTSTRAP_PASSWORD_HASH) {
+  const row = await env.DB.prepare('SELECT id, password_hash FROM users WHERE username = ? COLLATE NOCASE').bind('Ben').first();
+  if (!row && (env.BOOTSTRAP_PASSWORD || env.BOOTSTRAP_PASSWORD_HASH)) {
     const id = userId();
+    const passwordHash = env.BOOTSTRAP_PASSWORD ? await hashBootstrapPassword(env.BOOTSTRAP_PASSWORD) : env.BOOTSTRAP_PASSWORD_HASH;
     await env.DB.batch([
-      env.DB.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').bind(id, 'Ben', env.BOOTSTRAP_PASSWORD_HASH, new Date().toISOString()),
+      env.DB.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').bind(id, 'Ben', passwordHash, new Date().toISOString()),
       env.DB.prepare('INSERT INTO user_state (user_id, state_json, updated_at) VALUES (?, ?, ?)').bind(id, JSON.stringify(initialState()), new Date().toISOString()),
     ]);
+  } else if (row && env.BOOTSTRAP_PASSWORD && env.BOOTSTRAP_PASSWORD_HASH && row.password_hash === env.BOOTSTRAP_PASSWORD_HASH) {
+    await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(await hashBootstrapPassword(env.BOOTSTRAP_PASSWORD), row.id).run();
   }
 }
 
