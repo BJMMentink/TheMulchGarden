@@ -1,2 +1,2 @@
-// Set this to the deployed backend URL after the Cloudflare Worker is created.
-globalThis.MULCH_API_BASE = '';
+// Production API. Keep this value non-secret; authentication uses session tokens.
+globalThis.MULCH_API_BASE = 'https://the-mulch-garden-api.bjmmentink.workers.dev';
