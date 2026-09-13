@@ -13,10 +13,10 @@
 - Add the shared todo page with member labels, tags, filtering, and edit/delete actions.
 - Add seeded projects and creator interests.
 
-## Milestone 2 — Interest Engine and onboarding (complete)
+## Milestone 2 — Interest Engine and games (complete)
 
 - Add validated interest creation and ratings.
-- Add progressive catalog-driven onboarding with selection-aware recommendations.
+- Add the twenty-question Get to know me game with tailored repeat rounds.
 - Add combined creator/topic scoring and feedback interface primitives.
 
 ## Milestone 3 — Hardening (next)

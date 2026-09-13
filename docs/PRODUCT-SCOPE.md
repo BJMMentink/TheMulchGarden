@@ -2,9 +2,9 @@
 
 ## In scope
 
-- A fast dashboard shell with Today, Interests, and Projects views.
+- A fast dashboard shell with Today, Todos, Interests, Games, and Projects views.
 - Local state and seeded data.
-- First-launch progressive onboarding with quick selection and ratings.
+- A twenty-question Get to know me game with progressively tailored rounds.
 - Interest types: creators, topics, games, and keywords.
 - 1–5 ratings that influence content scoring.
 - Dynamic Interest Engine suggestions based on the saved interest map.
@@ -18,7 +18,7 @@
 
 - No Gmail, calendar, YouTube API, news, or recommendation network integration in V1.
 - No private YouTube watch-history access.
-- No login, sync, multi-user permissions, backend database, or cloud hosting.
+- No additional games, multiplayer gameplay, or real-time synchronization beyond the existing shared application state.
 - No automated briefing generation or read-aloud mode yet.
 - No cloud AI chatbot connection; V1 remains local and does not consume external AI usage.
 - No elaborate analytics, productivity scoring, notifications, drag-and-drop, or offline service worker.
@@ -26,4 +26,4 @@
 
 ## V1 success signal
 
-The app should make it easy to open the dashboard on a phone, see the two current projects and their next actions, establish useful interests in under two minutes, and leave with data that can be exported or integrated later without redesigning the domain model.
+The app should make it easy to open the dashboard on a phone, see the two current projects and their next actions, play a short twenty-question round, and leave with data that can be exported or integrated later without redesigning the domain model.

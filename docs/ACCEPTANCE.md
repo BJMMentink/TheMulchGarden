@@ -3,12 +3,10 @@
 ## Acceptance criteria
 
 - [x] The project exists at `F:\TheMulchGarden` and is a Git repository.
-- [x] A fresh launch shows a curated first-launch onboarding flow.
-- [x] Creator and gaming onboarding choices come from a reusable catalog and include public popular starting points.
-- [x] Later onboarding choices are ranked from the user's existing interests and earlier selections.
-- [x] Onboarding selections persist while moving forward or backward through the sequence.
-- [x] Onboarding covers creators, gaming, technology/AI, entertainment, and professional interests.
-- [x] Onboarding writes to the same Interest Engine data model used by the Interests view.
+- [x] The Games tab contains a first game called Get to know me.
+- [x] Get to know me presents exactly twenty questions per round, one at a time.
+- [x] Answers are stored in the per-user state and update the shared editable Interest Engine data.
+- [x] Later rounds use saved interests to tailor question ordering and avoid the immediately previous round.
 - [x] Nuxinor, Luke Stephens, and Asmongold are seeded at 5/5.
 - [x] Users can add and rate interests in all four supported categories.
 - [x] SaberDueler and GMCHE art class are visible as separate projects.
@@ -28,7 +26,7 @@
 
 ## Definition of Done for V1
 
-V1 is done when the acceptance criteria pass on a fresh browser profile, `node --test` passes, the app starts with `node server.js`, the two projects and seeded interests are present, onboarding can be completed or skipped, and the architecture/product decisions are documented in this repository.
+V1 is done when the acceptance criteria pass on a fresh browser profile, `node --test` passes, the app starts with `node server.js`, the two projects and seeded interests are present, a twenty-question game round can be completed, and the architecture/product decisions are documented in this repository.
 
 ## Verification checklist
 
@@ -36,5 +34,5 @@ V1 is done when the acceptance criteria pass on a fresh browser profile, `node -
 2. Run `node server.js`.
 3. Create an account, refresh, sign in again, and confirm the seeded state remains.
 4. Open the local URL on desktop and a phone-sized viewport.
-5. Complete onboarding, add an interest, add a shared todo with tags and an assignee, then complete and edit it.
+5. Start Get to know me, answer a twenty-question round, confirm an answer appears in Interests, then add a shared todo with tags and an assignee.
 6. Confirm `data/` is ignored and no password hash appears in API responses.

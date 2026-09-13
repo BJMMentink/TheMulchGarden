@@ -14,7 +14,7 @@
 
 The MVC separation is:
 
-- Model: `src/interest-engine.js`, `src/interest-catalog.js`, `src/default-data.js`, and `server/models/repository.js`.
+- Model: `src/interest-engine.js`, `src/get-to-know-me.js`, `src/default-data.js`, and `server/models/repository.js`.
 - View: `public/index.html`, `public/styles.css`, and render functions in `src/app.js`.
 - Controller: `server/controllers/*` and `server/router.js`.
 
@@ -41,11 +41,12 @@ GitHub Pages is intentionally static. Cloudflare Worker + D1 provides the free p
 ```js
 {
   version: 1,
-  onboarding: { completed: Boolean, version: Number },
+  onboarding: { completed: Boolean, version: Number }, // retained for old saved state compatibility
   interests: [{ id, name, category, rating, source }],
   projects: [{ id, name, type, color, todos: [{ id, title, done }] }],
   todos: [{ id, title, done, projectId, tags, addedBy, assignedTo, createdAt, updatedAt }],
-  feedback: [{ contentId, action, createdAt }]
+  feedback: [{ contentId, action, createdAt }],
+  games: { getToKnowMe: { currentRound, questionIndex, roundQuestionIds, answers, completedRounds } }
 }
 ```
 
@@ -58,11 +59,9 @@ Todos are a top-level shared collection so tasks can belong to a project without
 - `scoreContent(content, interests)` returns `{ score, matches }`; creator and topic/game/keyword signals can combine.
 - `recordFeedback(state, contentId, action)` records future feedback controls without requiring a content provider.
 
-### Dynamic onboarding
+### Get to know me
 
-`src/interest-catalog.js` owns a deliberately small, editable starter catalog for public creators, games, and topics. `getOnboardingSteps({ interests, selections })` ranks each step's options using configured popularity and tag overlap with the user's existing interests and earlier onboarding choices. The UI only renders the returned options; it does not own recommendation rules. Selections persist across Back/Continue and are written through `createInterest`, so onboarding and the Interests view use the same model.
-
-The catalog is a free, static seed for V1. It does not call YouTube, inspect private watch history, or require an API key. A future public-content adapter can replace or refresh the catalog without changing onboarding presentation or the Interest Engine interface.
+`src/get-to-know-me.js` owns the question catalog and game state transitions. A round selects twenty questions using tag overlap with saved interests, records each answer, and avoids the immediately previous round when another round starts. The view applies each answer to the shared `interests` collection, so likes and dislikes remain editable in the Interests tab. The question catalog is local, deterministic, and free; it does not call YouTube or inspect private watch history.
 
 Future integrations should adapt external data into a stable content object (`id`, `creator`, `topic`, `title`, `tags`) and call the engine. The engine should not call Gmail, YouTube, or calendar APIs directly.
 

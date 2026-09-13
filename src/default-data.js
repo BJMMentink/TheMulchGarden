@@ -1,3 +1,5 @@
+import { createGetToKnowMeState } from './get-to-know-me.js';
+
 export const SEEDED_INTERESTS = Object.freeze([
   { id: 'creator-nuxinor', name: 'Nuxinor', category: 'creator', rating: 5, source: 'seed' },
   { id: 'creator-luke-stephens', name: 'Luke Stephens', category: 'creator', rating: 5, source: 'seed' },
@@ -23,5 +25,6 @@ export function createInitialState() {
     todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
     feedback: [],
     memories: [],
+    games: { getToKnowMe: createGetToKnowMeState() },
   };
 }

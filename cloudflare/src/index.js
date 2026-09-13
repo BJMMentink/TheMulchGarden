@@ -22,6 +22,8 @@ const DEFAULT_TODOS = [
   { id: 'todo-gmche-1', title: 'Prepare the next art class materials', done: false, projectId: 'project-gmche', tags: ['next action'], addedBy: 'system', assignedTo: 'everyone', createdAt: '2026-01-01T00:00:00.000Z' },
 ];
 
+const initialGameState = () => ({ version: 1, currentRound: 0, questionIndex: 0, roundQuestionIds: [], answers: [], completedRounds: 0 });
+
 const initialState = () => ({
   version: 1,
   onboarding: { completed: false, version: 0 },
@@ -30,6 +32,7 @@ const initialState = () => ({
   todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
   feedback: [],
   memories: [],
+  games: { getToKnowMe: initialGameState() },
 });
 
 const json = (body, status = 200, extra = {}) => new Response(JSON.stringify(body), {

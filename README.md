@@ -21,7 +21,7 @@ Sign in with the provisioned local `Ben` account using the temporary password `a
 ## Current V1
 
 - MVC backend with JSON API routes, server-side user data, secure session cookies, and scrypt password hashing.
-- Dynamic first-launch onboarding for creators, gaming, technology/AI, entertainment, and professional interests. Starter choices are ranked from a small public catalog using popularity plus the user's selections.
+- A Games tab with the first game, Get to know me: twenty-question rounds that progressively build editable interest signals.
 - Seeded creator preferences: Nuxinor 5/5, Luke Stephens 5/5, and Asmongold 5/5.
 - Add and rate creators, topics, games, and keywords.
 - Personal and professional projects with lightweight todo lists for SaberDueler and GMCHE art class.
@@ -35,6 +35,7 @@ Sign in with the provisioned local `Ben` account using the temporary password `a
 - `src/default-data.js`: portable seed/default state.
 - `src/storage.js`: browser API client boundary.
 - `src/interest-engine.js`: presentation-independent interest creation, rating, scoring, and feedback primitives.
+- `src/get-to-know-me.js`: presentation-independent twenty-question game state and answer logic.
 - `src/app.js`: thin UI composition and event wiring.
 - `server/`: backend configuration, JSON repository, authentication, controllers, and router.
 - `server.js`: dependency-free MVC web server and static asset host.

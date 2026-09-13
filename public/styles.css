@@ -116,6 +116,18 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
 .admin-user-card h3 { margin-top: var(--space-1); }
 .admin-user-form { display: grid; gap: var(--space-4); padding: var(--space-4); }
 .admin-form-fields { display: grid; gap: var(--space-3); }
+.game-page { display: grid; gap: var(--space-3); }
+.game-intro, .game-complete, .game-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.game-intro { grid-template-columns: auto 1fr; align-items: start; }
+.game-intro h3, .game-complete h3, .game-card h3 { margin-top: var(--space-1); }
+.game-intro p, .game-complete p, .game-note { max-width: 42rem; }
+.game-intro .button, .game-complete .button { justify-self: start; }
+.game-progress { display: grid; gap: var(--space-2); }
+.game-progress .progress-line { margin: 0; }
+.answer-grid { display: grid; gap: var(--space-2); }
+.answer-choice { min-height: 3.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0.8rem 0.9rem; background: var(--color-surface); color: var(--color-text); text-align: left; }
+.answer-choice:hover, .answer-choice:focus-visible { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary-dark); }
+.game-note { font-size: 0.82rem; }
 .memory-panel { display: grid; gap: var(--space-3); padding: var(--space-4); }
 .memory-list { display: grid; gap: var(--space-3); }
 .memory-row { display: grid; gap: var(--space-2); }
@@ -162,6 +174,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
   .todo-form-fields { grid-template-columns: 2fr 1fr 1fr; }
   .todo-toolbar { grid-template-columns: 2fr 1fr 1fr; align-items: end; }
   .admin-form-fields { grid-template-columns: 1fr 1fr 1fr; align-items: end; }
+  .answer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .modal-backdrop { place-items: center; }
 }
 

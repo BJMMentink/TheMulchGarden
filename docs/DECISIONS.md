@@ -37,7 +37,26 @@
 **Decision:** Future YouTube monitoring must use public/explicitly configured sources and user feedback.
 
 **Why:** The product vision explicitly avoids private watch-history access and should remain understandable and portable.
-# Decision: catalog-driven onboarding
+# Decision: catalog-driven onboarding (superseded)
+
+## Status
+
+Implemented briefly, then superseded by the Games tab and Get to know me flow.
+
+## Decision
+
+The first-launch sequence used a small local catalog of public creators, games, and topics. It was replaced because the user wanted interest discovery to be an explicit game instead of a startup popup.
+
+## Why
+
+The decision established that interest discovery should remain local, deterministic, free, and testable.
+
+## Consequences
+
+- The catalog implementation is no longer part of the active V1 runtime.
+- The same principles now apply to the question catalog in `src/get-to-know-me.js`.
+
+# Decision: Get to know me as the first game
 
 ## Status
 
@@ -45,14 +64,14 @@ Accepted for V1.
 
 ## Decision
 
-The first-launch sequence uses a small local catalog of public creators, games, and topics. Each step ranks candidates from configured popularity plus tag overlap with saved interests and choices already made in the sequence. The catalog is intentionally editable source code and does not require private YouTube history, a third-party API, or paid infrastructure.
+Interest discovery lives in a Games tab instead of an automatic startup popup. The first game presents twenty preference questions per round, records answer history, updates the shared editable Interest Engine, and uses saved interests to prioritize later rounds.
 
 ## Why
 
-This gives the user useful starting choices immediately while keeping startup fast, deterministic, free, and testable. The ranking seam can later consume public provider data without coupling the UI to YouTube or another service.
+An explicit game is easier to revisit, less disruptive at startup, and creates a natural path for the system to learn likes and dislikes over time without private history or a paid AI service.
 
 ## Consequences
 
-- Existing interests and prior onboarding selections remain visible and influence later steps.
-- Catalog popularity is a refreshable starter signal, not a promise of live rankings.
-- Feedback controls and provider adapters remain future work.
+- Existing users do not have to complete a blocking onboarding modal.
+- Every answer is user-visible and editable through Interests.
+- The game catalog can expand without changing the backend state API.
