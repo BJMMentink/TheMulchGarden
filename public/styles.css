@@ -52,7 +52,7 @@ p { color: var(--color-text-muted); }
 .card { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-soft); }
 .icon-button, .text-button { border: 0; color: var(--color-primary); background: transparent; }
 .icon-button { width: 2.75rem; height: 2.75rem; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); font-size: 1.4rem; }
-.welcome-panel { display: flex; min-height: 12rem; align-items: flex-end; justify-content: space-between; padding: var(--space-5); background: var(--color-primary); color: white; overflow: hidden; }
+.welcome-panel { display: flex; min-height: 12rem; align-items: flex-end; justify-content: space-between; padding: var(--space-5); border-color: #4a2028; background: linear-gradient(135deg, #1d1014 0%, #2b1219 58%, #3b1720 100%); color: white; overflow: hidden; }
 .welcome-panel p { max-width: 34rem; margin-top: var(--space-3); color: #f3c4c8; }
 .welcome-panel .eyebrow { color: #f0aeb5; }
 .welcome-panel h2 { max-width: 24rem; margin-top: var(--space-2); }
