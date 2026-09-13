@@ -1,12 +1,15 @@
-import { APP_CONFIG, INTEREST_CATEGORIES, ONBOARDING_STEPS, SECTIONS } from './config.js';
+import { APP_CONFIG, INTEREST_CATEGORIES, ONBOARDING_STEPS, SECTIONS, USER_ROLES } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { getCurrentUser, loadMembers, loadState, login, logout, saveState, updateAccount } from './storage.js';
+import { createAdminUser, getCurrentUser, loadAdminUsers, loadMembers, loadState, login, logout, saveState, updateAccount } from './storage.js';
 
 let state;
 let currentUser;
 let members = [];
+let adminUsers = [];
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
+let selectedSection = APP_CONFIG.defaultSection;
+let viewMode = 'user';
 const root = document.querySelector('#app');
 
 function escapeHtml(value) {
@@ -18,14 +21,27 @@ function stars(rating) {
 }
 
 function activeSection() {
-  return document.querySelector('[data-section].is-active')?.dataset.section || APP_CONFIG.defaultSection;
+  return selectedSection;
 }
 
 function setSection(section) {
+  selectedSection = section;
   document.querySelectorAll('[data-section]').forEach((element) => element.classList.toggle('is-active', element.dataset.section === section));
   document.querySelectorAll('[data-view]').forEach((element) => element.hidden = element.dataset.view !== section);
   document.querySelectorAll('[data-nav]').forEach((element) => element.classList.toggle('is-selected', element.dataset.nav === section));
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function isAdmin() {
+  return currentUser?.role === USER_ROLES.ADMIN;
+}
+
+function isAdminMode() {
+  return isAdmin() && viewMode === 'admin';
+}
+
+function visibleSections() {
+  return isAdminMode() ? [...SECTIONS, { id: 'admin', label: 'Admin', icon: '⚙' }] : SECTIONS;
 }
 
 function todoMembers() {
@@ -73,15 +89,23 @@ function todoCards() {
   }).join('');
 }
 
+function adminUserCards() {
+  if (!adminUsers.length) return '<article class="card empty-state"><h3>No accounts found.</h3><p>The administrator account list is empty.</p></article>';
+  return adminUsers.map((user) => `<article class="admin-user-card card"><div><span class="eyebrow">${escapeHtml(user.role === USER_ROLES.ADMIN ? 'Administrator' : 'User')}</span><h3>${escapeHtml(user.username)}</h3></div><span class="count-badge">${user.id === currentUser.id ? 'You' : 'Account'}</span></article>`).join('');
+}
+
 function render() {
-  root.innerHTML = `<header class="topbar"><div><p class="eyebrow">${escapeHtml(currentUser.username)} · Personal command center</p><h1>The Mulch Garden</h1></div><div class="topbar-actions"><button class="text-button" data-action="account">Account</button><button class="text-button" data-action="logout">Log out</button><button class="icon-button" data-action="open-onboarding" aria-label="Open onboarding">＋</button></div></header>
+  const sections = visibleSections();
+  const section = sections.some((item) => item.id === activeSection()) ? activeSection() : APP_CONFIG.defaultSection;
+  root.innerHTML = `<header class="topbar"><div><p class="eyebrow">${escapeHtml(currentUser.username)} · Personal command center</p><h1>The Mulch Garden</h1></div><div class="topbar-actions">${isAdmin() ? `<label class="mode-switch"><input type="checkbox" data-action="toggle-mode" ${isAdminMode() ? 'checked' : ''}><span>${isAdminMode() ? 'Admin mode' : 'User mode'}</span></label>` : ''}<button class="text-button" data-action="account">Account</button><button class="text-button" data-action="logout">Log out</button><button class="icon-button" data-action="open-onboarding" aria-label="Open onboarding">＋</button></div></header>
       <main class="page-shell">
     <section data-view="dashboard" class="view"><div class="welcome-panel card"><div><span class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span><h2>Tend what matters today.</h2><p>Your small, local-first hub for projects, attention, and a little signal.</p></div><div class="garden-mark" aria-hidden="true">✿</div></div><div class="section-heading"><div><span class="eyebrow">Today</span><h2>Good soil for a start</h2></div></div><div class="briefing-grid"><article class="card briefing-card"><span class="card-icon">✓</span><div><span class="eyebrow">Open work</span><strong>${state.todos.filter((todo) => !todo.done).length} tasks</strong><p>Keep the next action visible.</p></div></article><article class="card briefing-card"><span class="card-icon">✦</span><div><span class="eyebrow">Attention</span><strong>${state.interests.length} interests</strong><p>Weighted by what you care about.</p></div></article></div><article class="card next-step"><div><span class="eyebrow">Suggested next step</span><h3>Grow your interest map</h3><p>Add a creator, topic, game, or keyword. Ratings help the engine prioritize future content.</p></div><button class="button" data-nav="interests">Review interests</button></article></section>
     <section data-view="todos" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Shared todos</span><h2>What needs tending?</h2><p>Everyone can see the same list. Each task keeps its author and intended person visible.</p></div></div><form class="card todo-composer" id="todo-form"><div class="form-heading"><h3>Add a shared todo</h3><span class="eyebrow">Added by ${escapeHtml(currentUser.username)}</span></div><label>Task<input name="title" required maxlength="${APP_CONFIG.maxTodoTitleLength}" placeholder="What needs doing?" autocomplete="off"></label><div class="todo-form-fields"><label>Tags<input name="tags" maxlength="${APP_CONFIG.maxTodoTags * APP_CONFIG.maxTodoTagLength}" placeholder="home, urgent"></label><label>Project<select name="projectId"><option value="">No project</option>${state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join('')}</select></label><label>For<select name="assignedTo">${memberOptions()}</select></label></div><button class="button" type="submit">Add todo</button></form><div class="todo-toolbar card"><label>Search<input data-todo-filter="query" value="${escapeHtml(todoFilters.query)}" placeholder="Search todos or tags"></label><label>Status<select data-todo-filter="status"><option value="open" ${todoFilters.status === 'open' ? 'selected' : ''}>Open</option><option value="all" ${todoFilters.status === 'all' ? 'selected' : ''}>All</option><option value="completed" ${todoFilters.status === 'completed' ? 'selected' : ''}>Completed</option></select></label><label>Assigned to<select data-todo-filter="assignedTo"><option value="all">Everyone / anyone</option>${memberOptions(todoFilters.assignedTo)}</select></label></div><div class="todo-list-page">${todoCards()}</div></section>
+    <section data-view="admin" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Administration</span><h2>Keep the garden well tended.</h2><p>Admin tools are visible only while admin mode is active.</p></div></div><div class="admin-grid">${adminUserCards()}</div><form class="card admin-user-form" id="admin-user-form"><div class="form-heading"><h3>Add a user</h3><span class="eyebrow">Up to ${APP_CONFIG.maxAccounts} accounts</span></div><div class="admin-form-fields"><label>Username<input name="username" required minlength="3" maxlength="32" autocomplete="off"></label><label>Temporary password<input name="password" required minlength="4" maxlength="200" type="password" autocomplete="new-password"></label><label>Role<select name="role"><option value="user">User</option><option value="admin" selected>Administrator</option></select></label></div><button class="button" type="submit">Create account</button></form></section>
     <section data-view="interests" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Interest Engine</span><h2>What feeds your curiosity?</h2><p>Ratings guide future content. You stay in control of the signal.</p></div></div><div class="interest-grid">${interestCards()}</div><article class="suggestions-panel"><div class="form-heading"><div><span class="eyebrow">Engine suggestions</span><h3>Branches worth exploring</h3></div><span class="eyebrow">Based on your map</span></div><div class="suggestion-grid">${suggestionCards()}</div></article><form class="card add-interest-form" id="add-interest-form"><div class="form-heading"><h3>Add an interest</h3><span class="eyebrow">Saved to your account</span></div><div class="form-fields"><label>Name<input name="name" required placeholder="e.g. cozy games"></label><label>Type<select name="category">${INTEREST_CATEGORIES.map((category) => `<option value="${category.id}">${category.label}</option>`).join('')}</select></label><label>Rating<select name="rating">${[1, 2, 3, 4, 5].map((rating) => `<option value="${rating}" ${rating === 3 ? 'selected' : ''}>${rating}/5</option>`).join('')}</select></label><button class="button" type="submit">Add interest</button></div></form><article class="card memory-panel"><div class="form-heading"><div><span class="eyebrow">Private memory</span><h3>What should the future assistant know?</h3></div><span class="eyebrow">Fully editable</span></div><p>Only memories saved here will be eligible as personal context for the assistant. You can edit or delete them at any time.</p><div class="memory-list">${memoryCards()}</div><form id="memory-form" class="memory-form"><textarea name="text" maxlength="500" required placeholder="Example: I prefer short, practical morning plans."></textarea><button class="button" type="submit">Save memory</button></form></article></section>
     <section data-view="projects" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Projects</span><h2>Keep the garden growing.</h2><p>Only the next useful actions belong here for now.</p></div></div><div class="project-grid">${projectCards()}</div></section>
-  </main><nav class="bottom-nav" aria-label="Primary navigation">${SECTIONS.map((section) => `<button data-nav="${section.id}" class="nav-item ${section.id === activeSection() ? 'is-selected' : ''}"><span class="nav-icon">${section.icon}</span><span>${section.label}</span></button>`).join('')}</nav><div id="modal-root"></div>`;
-  setSection(activeSection());
+  </main><nav class="bottom-nav" aria-label="Primary navigation">${sections.map((item) => `<button data-nav="${item.id}" class="nav-item ${item.id === section ? 'is-selected' : ''}"><span class="nav-icon">${item.icon}</span><span>${item.label}</span></button>`).join('')}</nav><div id="modal-root"></div>`;
+  setSection(section);
   bindEvents();
   if (!state.onboarding.completed) renderOnboarding(0, {});
 }
@@ -102,6 +126,7 @@ function renderOnboarding(stepIndex, selections) {
 
 function bindEvents() {
   document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => setSection(button.dataset.nav)));
+  document.querySelector('[data-action="toggle-mode"]')?.addEventListener('change', async (event) => { viewMode = event.currentTarget.checked ? 'admin' : 'user'; if (viewMode === 'admin') adminUsers = await loadAdminUsers(); render(); setSection(viewMode === 'admin' ? 'admin' : 'dashboard'); });
   document.querySelector('[data-action="open-onboarding"]')?.addEventListener('click', () => renderOnboarding(0, {}));
   document.querySelector('[data-action="account"]')?.addEventListener('click', () => renderAccountSettings());
   document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
@@ -118,6 +143,7 @@ function bindEvents() {
   document.querySelectorAll('[data-add-todo]').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const title = new FormData(form).get('title')?.trim(); const project = state.projects.find((item) => item.id === form.dataset.addTodo); if (title && project) { try { state.todos.unshift(createTodo({ title, projectId: project.id, addedBy: currentUser.id })); saveState(state); render(); setSection('projects'); } catch (error) { window.alert(error.message); } } }));
   document.querySelectorAll('[data-edit-todo]').forEach((button) => button.addEventListener('click', () => { const todo = state.todos.find((item) => item.id === button.dataset.editTodo); if (!todo) return; const title = window.prompt('Todo title', todo.title)?.trim(); if (!title) return; if (title.length > APP_CONFIG.maxTodoTitleLength) { window.alert(`Todo titles must be ${APP_CONFIG.maxTodoTitleLength} characters or fewer.`); return; } const tags = window.prompt('Tags, separated by commas', todo.tags.join(', ')); if (tags === null) return; const assignment = window.prompt(`For whom? Enter: ${todoMembers().map((member) => member.username).join(', ')}`, memberName(todo.assignedTo)); if (assignment === null) return; const member = todoMembers().find((item) => item.username.toLocaleLowerCase() === assignment.trim().toLocaleLowerCase()); if (!member) { window.alert('Choose one of the listed people.'); return; } todo.title = title; todo.tags = normalizeTags(tags); todo.assignedTo = member.id; todo.updatedAt = new Date().toISOString(); saveState(state); render(); setSection('todos'); }));
   document.querySelectorAll('[data-remove-todo]').forEach((button) => button.addEventListener('click', () => { if (!window.confirm('Delete this todo?')) return; state.todos = state.todos.filter((todo) => todo.id !== button.dataset.removeTodo); saveState(state); render(); setSection('todos'); }));
+  document.querySelector('#admin-user-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); try { await createAdminUser(values); adminUsers = await loadAdminUsers(); render(); setSection('admin'); } catch (error) { window.alert(error.message); } });
 }
 
 function renderAuth(message = '') {
@@ -132,7 +158,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [] }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [] }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); }
   catch (error) { renderAuth(error.message); }
 }
 

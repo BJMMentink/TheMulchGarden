@@ -19,6 +19,9 @@
 - [x] Public account registration is disabled.
 - [x] Signed-in users can change their username and password after verifying the current password.
 - [x] Per-user state is persisted by the backend rather than browser-only storage.
+- [x] Admin-only endpoints enforce the administrator role server-side.
+- [x] Administrators can toggle between admin mode and user mode; normal users do not see the toggle or admin view.
+- [x] Administrators can provision the second account with a selected role without exposing password hashes.
 
 ## Definition of Done for V1
 

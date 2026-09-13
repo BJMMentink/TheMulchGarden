@@ -1,6 +1,6 @@
 import { createSessionToken, expiredSessionCookie, hashPassword, parseCookies, sessionCookie, tokenDigest, verifyPassword } from '../lib/auth.js';
 
-const publicUser = (user) => ({ id: user.id, username: user.username });
+const publicUser = (user) => ({ id: user.id, username: user.username, role: user.role || 'user' });
 
 export function createAuthController(repository, config) {
   async function startSession(user, response) {
@@ -33,6 +33,22 @@ export function createAuthController(repository, config) {
       if (!/^[A-Za-z0-9_-]{3,32}$/.test(username)) throw new Error('Username must be 3–32 letters, numbers, underscores, or hyphens.');
       const existing = await repository.findUserByUsername(username); if (existing && existing.id !== user.id) throw new Error('That username is already in use.');
       return publicUser(await repository.updateUser(user.id, { username, passwordHash: body.newPassword ? await hashPassword(body.newPassword) : stored.passwordHash }));
+    },
+    async listAdminUsers(user) {
+      if (user.role !== 'admin') throw Object.assign(new Error('Administrator access required.'), { status: 403 });
+      return repository.listPublicUsers();
+    },
+    async createAdminUser(body, user) {
+      if (user.role !== 'admin') throw Object.assign(new Error('Administrator access required.'), { status: 403 });
+      if (await repository.countUsers() >= config.maxAccounts) throw new Error(`This private app is limited to ${config.maxAccounts} accounts.`);
+      const username = String(body.username || '').trim();
+      if (!/^[A-Za-z0-9_-]{3,32}$/.test(username)) throw new Error('Username must be 3–32 letters, numbers, underscores, or hyphens.');
+      if (await repository.findUserByUsername(username)) throw new Error('That username is already in use.');
+      const password = String(body.password || '');
+      if (password.length < 4 || password.length > 200) throw new Error('Password must be 4–200 characters.');
+      const role = body.role === 'admin' ? 'admin' : 'user';
+      const created = await repository.createUser({ username, passwordHash: await hashPassword(password), role });
+      return publicUser(created);
     },
   };
 }

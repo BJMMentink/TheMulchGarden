@@ -4,6 +4,7 @@ const DEFAULT_SESSION_DAYS = 14;
 const PASSWORD_ITERATIONS = 50000;
 const PASSWORD_KEY_BITS = 256;
 const MAX_BODY_BYTES = 100000;
+const MAX_ACCOUNTS = 2;
 
 const SEEDED_INTERESTS = [
   { id: 'creator-nuxinor', name: 'Nuxinor', category: 'creator', rating: 5, source: 'seed' },
@@ -83,18 +84,18 @@ async function verifyPassword(password, encoded) {
   } catch { return false; }
 }
 
-function publicUser(user, token) { return { id: user.id, username: user.username, ...(token ? { token } : {}) }; }
+function publicUser(user, token) { return { id: user.id, username: user.username, role: user.role || 'user', ...(token ? { token } : {}) }; }
 function cookie(token, maxAge) { return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`; }
 function expiredCookie() { return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`; }
 function userId() { return crypto.randomUUID(); }
 
 async function ensureBootstrap(env) {
-  const row = await env.DB.prepare('SELECT id, password_hash FROM users WHERE username = ? COLLATE NOCASE').bind('Ben').first();
+  const row = await env.DB.prepare('SELECT id, password_hash, role FROM users WHERE username = ? COLLATE NOCASE').bind('Ben').first();
   if (!row && (env.BOOTSTRAP_PASSWORD || env.BOOTSTRAP_PASSWORD_HASH)) {
     const id = userId();
     const passwordHash = env.BOOTSTRAP_PASSWORD ? await hashBootstrapPassword(env.BOOTSTRAP_PASSWORD) : env.BOOTSTRAP_PASSWORD_HASH;
     await env.DB.batch([
-      env.DB.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').bind(id, 'Ben', passwordHash, new Date().toISOString()),
+      env.DB.prepare('INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, 'Ben', passwordHash, 'admin', new Date().toISOString()),
       env.DB.prepare('INSERT INTO user_state (user_id, state_json, updated_at) VALUES (?, ?, ?)').bind(id, JSON.stringify(initialState()), new Date().toISOString()),
     ]);
   } else if (row && env.BOOTSTRAP_PASSWORD && env.BOOTSTRAP_PASSWORD_HASH && row.password_hash === env.BOOTSTRAP_PASSWORD_HASH) {
@@ -106,7 +107,7 @@ async function currentUser(request, env) {
   const rawToken = tokenFrom(request);
   if (!rawToken) return null;
   const tokenDigest = await digest(rawToken);
-  return env.DB.prepare('SELECT users.id, users.username FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.digest = ? AND sessions.expires_at > ?').bind(tokenDigest, Date.now()).first();
+  return env.DB.prepare('SELECT users.id, users.username, users.role FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.digest = ? AND sessions.expires_at > ?').bind(tokenDigest, Date.now()).first();
 }
 
 async function readJson(request) {
@@ -117,7 +118,7 @@ async function readJson(request) {
 
 async function login(request, env) {
   const body = await readJson(request);
-  const user = await env.DB.prepare('SELECT id, username, password_hash FROM users WHERE username = ? COLLATE NOCASE').bind(String(body.username || '').trim()).first();
+  const user = await env.DB.prepare('SELECT id, username, password_hash, role FROM users WHERE username = ? COLLATE NOCASE').bind(String(body.username || '').trim()).first();
   if (!user || !(await verifyPassword(body.password, user.password_hash))) throw new Error('Username or password is incorrect.');
   const token = randomToken();
   const days = Number(env.SESSION_DAYS || DEFAULT_SESSION_DAYS);
@@ -127,7 +128,7 @@ async function login(request, env) {
 
 async function updateAccount(request, env, user) {
   const body = await readJson(request);
-  const stored = await env.DB.prepare('SELECT id, username, password_hash FROM users WHERE id = ?').bind(user.id).first();
+  const stored = await env.DB.prepare('SELECT id, username, password_hash, role FROM users WHERE id = ?').bind(user.id).first();
   if (!stored || !(await verifyPassword(body.currentPassword, stored.password_hash))) throw new Error('Current password is incorrect.');
   const username = String(body.username || '').trim();
   if (!/^[A-Za-z0-9_-]{3,32}$/.test(username)) throw new Error('Username must be 3–32 letters, numbers, underscores, or hyphens.');
@@ -155,6 +156,35 @@ async function members(env) {
   return json({ members: result.results || [] });
 }
 
+function requireAdmin(user) {
+  if (user.role !== 'admin') throw Object.assign(new Error('Administrator access required.'), { status: 403 });
+}
+
+async function adminUsers(request, env, user) {
+  requireAdmin(user);
+  if (request.method === 'GET') {
+    const result = await env.DB.prepare('SELECT id, username, role, created_at AS createdAt FROM users ORDER BY username COLLATE NOCASE').all();
+    return json({ users: result.results || [] });
+  }
+  const body = await readJson(request);
+  const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM users').first();
+  if (Number(count?.count || 0) >= MAX_ACCOUNTS) throw new Error(`This private app is limited to ${MAX_ACCOUNTS} accounts.`);
+  const username = String(body.username || '').trim();
+  if (!/^[A-Za-z0-9_-]{3,32}$/.test(username)) throw new Error('Username must be 3–32 letters, numbers, underscores, or hyphens.');
+  const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').bind(username).first();
+  if (existing) throw new Error('That username is already in use.');
+  const password = String(body.password || '');
+  const passwordHash = await hashPassword(password);
+  const role = body.role === 'admin' ? 'admin' : 'user';
+  const id = userId();
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, username, passwordHash, role, now),
+    env.DB.prepare('INSERT INTO user_state (user_id, state_json, updated_at) VALUES (?, ?, ?)').bind(id, JSON.stringify(initialState()), now),
+  ]);
+  return json({ user: publicUser({ id, username, role }) }, 201);
+}
+
 async function route(request, env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return new Response('The Mulch Garden API', { status: 200 });
@@ -170,6 +200,7 @@ async function route(request, env) {
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
+  if (url.pathname === '/api/admin/users' && ['GET', 'POST'].includes(request.method)) return adminUsers(request, env, user);
   if (url.pathname === '/api/state' && ['GET', 'PUT'].includes(request.method)) return appState(request, env, user);
   return json({ error: 'Not found.' }, 404);
 }

@@ -14,4 +14,6 @@ The Worker creates the initial `Ben` account on its first request when a bootstr
 
 The root `wrangler.toml` is used by Cloudflare's GitHub deployment flow. Replace its D1 placeholder with the database ID after creating the database; this ID is not a secret.
 
+The role migration in `migrations/0002_add_user_roles.sql` adds `user`/`admin` roles and promotes the original Ben account. Admin account creation is limited to the configured two-account private-app cap; passwords are hashed inside the Worker and never returned.
+
 Cloudflare's free plan is sufficient for this lightweight personal app. If the dashboard asks for a payment method or paid plan, stop and do not continue.

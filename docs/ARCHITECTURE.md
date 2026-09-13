@@ -27,6 +27,8 @@ The browser can point at either the local Node API or the production Cloudflare 
 - `POST /api/auth/logout`
 - `PATCH /api/auth/me`
 - `GET /api/members`
+- `GET /api/admin/users` (administrator only)
+- `POST /api/admin/users` (administrator only)
 - `GET /api/state`
 - `PUT /api/state`
 
@@ -63,6 +65,7 @@ Future integrations should adapt external data into a stable content object (`id
 - Passwords use Node's `crypto.scrypt` with a random salt; plaintext passwords are never persisted. The current private-app policy accepts 4–200 characters.
 - Sessions use high-entropy random tokens. Only a SHA-256 digest is stored server-side.
 - Public registration is disabled. Accounts are provisioned server-side and the system is reserved for two known accounts.
+- Users have a backend-enforced `user` or `admin` role. Admin mode is a presentation mode available only to administrators; switching to user mode hides admin navigation but does not weaken backend authorization.
 - Session cookies are `HttpOnly` and `SameSite=Lax`; production enables `Secure` cookies.
 - User data is kept in per-user files under ignored `data/` and writes use a temporary file plus rename.
 - A public deployment still needs HTTPS, rate limiting, backups, secret management, monitoring, and a database designed for concurrent writes.

@@ -8,6 +8,12 @@ export const APP_CONFIG = Object.freeze({
   maxTodoTitleLength: 120,
   maxTodoTags: 8,
   maxTodoTagLength: 32,
+  maxAccounts: 2,
+});
+
+export const USER_ROLES = Object.freeze({
+  USER: 'user',
+  ADMIN: 'admin',
 });
 
 export const SECTIONS = Object.freeze([

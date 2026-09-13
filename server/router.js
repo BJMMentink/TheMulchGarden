@@ -13,6 +13,8 @@ export function createRouter({ auth, app, bodyLimit }) {
       const user = await app.requireUser(request);
       if (request.method === 'PATCH' && path === '/api/auth/me') return send(response, 200, { user: await auth.update(body, user) });
       if (request.method === 'GET' && path === '/api/members') return send(response, 200, { members: await app.listMembers() });
+      if (request.method === 'GET' && path === '/api/admin/users') return send(response, 200, { users: await auth.listAdminUsers(user) });
+      if (request.method === 'POST' && path === '/api/admin/users') return send(response, 201, { user: await auth.createAdminUser(body, user) });
       if (request.method === 'GET' && path === '/api/state') return send(response, 200, await app.getState(user));
       if (request.method === 'PUT' && path === '/api/state') return send(response, 200, await app.saveState(user, body));
       return send(response, 404, { error: 'Not found.' });

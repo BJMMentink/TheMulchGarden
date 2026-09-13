@@ -18,5 +18,7 @@ export async function login(username, password) {
 export async function logout() { try { await request('/api/auth/logout', { method: 'POST', body: '{}' }); } finally { localStorage.removeItem('mg_api_token'); } }
 export async function loadState() { return request('/api/state'); }
 export async function loadMembers() { return (await request('/api/members')).members; }
+export async function loadAdminUsers() { return (await request('/api/admin/users')).users; }
+export async function createAdminUser(user) { return (await request('/api/admin/users', { method: 'POST', body: JSON.stringify(user) })).user; }
 export async function saveState(state) { return request('/api/state', { method: 'PUT', body: JSON.stringify(state) }); }
 export async function updateAccount(account) { return (await request('/api/auth/me', { method: 'PATCH', body: JSON.stringify(account) })).user; }
