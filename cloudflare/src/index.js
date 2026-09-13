@@ -5,6 +5,8 @@ const PASSWORD_ITERATIONS = 50000;
 const PASSWORD_KEY_BITS = 256;
 const MAX_BODY_BYTES = 100000;
 const MAX_ACCOUNTS = 2;
+const CHAT_MAX_MESSAGE_LENGTH = 280;
+const CHAT_MAX_MESSAGES = 100;
 
 const SEEDED_INTERESTS = [
   { id: 'creator-nuxinor', name: 'Nuxinor', category: 'creator', rating: 5, source: 'seed' },
@@ -154,6 +156,21 @@ async function appState(request, env, user) {
   return json(body);
 }
 
+async function chatMessages(request, env, user) {
+  if (request.method === 'GET') {
+    const result = await env.DB.prepare('SELECT id, username, message, created_at AS createdAt FROM chat_messages ORDER BY created_at DESC LIMIT ?').bind(CHAT_MAX_MESSAGES).all();
+    return json({ messages: (result.results || []).reverse() });
+  }
+  const body = await readJson(request);
+  const message = String(body.message || '').trim();
+  if (!message) throw new Error('Message is required.');
+  if (message.length > CHAT_MAX_MESSAGE_LENGTH) throw new Error(`Messages must be ${CHAT_MAX_MESSAGE_LENGTH} characters or fewer.`);
+  const createdAt = new Date().toISOString();
+  const id = userId();
+  await env.DB.prepare('INSERT INTO chat_messages (id, user_id, username, message, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, user.id, user.username, message, createdAt).run();
+  return json({ message: { id, username: user.username, message, createdAt } }, 201);
+}
+
 async function members(env) {
   const result = await env.DB.prepare('SELECT id, username FROM users ORDER BY username COLLATE NOCASE').all();
   return json({ members: result.results || [] });
@@ -203,6 +220,7 @@ async function route(request, env) {
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
+  if (url.pathname === '/api/chat/messages' && ['GET', 'POST'].includes(request.method)) return chatMessages(request, env, user);
   if (url.pathname === '/api/admin/users' && ['GET', 'POST'].includes(request.method)) return adminUsers(request, env, user);
   if (url.pathname === '/api/state' && ['GET', 'PUT'].includes(request.method)) return appState(request, env, user);
   return json({ error: 'Not found.' }, 404);

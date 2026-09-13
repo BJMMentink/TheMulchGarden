@@ -1,13 +1,18 @@
 import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS, USER_ROLES } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
+import { shouldShowChatTimestamp } from './chat-engine.js';
 import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer, startRound } from './get-to-know-me.js';
+import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { createAdminUser, getCurrentUser, loadAdminUsers, loadMembers, loadState, login, logout, saveState, updateAccount } from './storage.js';
+import { createAdminUser, getCurrentUser, loadAdminUsers, loadChatMessages, loadMembers, loadState, login, logout, saveState, sendChatMessage, updateAccount } from './storage.js';
 
 let state;
 let currentUser;
 let members = [];
 let adminUsers = [];
+let chatMessages = [];
+let chatOpen = false;
+let chatPollTimer;
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
 let viewMode = 'user';
@@ -90,6 +95,40 @@ function applyGameAnswer(answer) {
   state.interests.push(createInterest({ name: answer.interestName, category: answer.category, rating: answer.rating, source: 'game' }));
 }
 
+function shouldShowChatTime(index) {
+  return shouldShowChatTimestamp(chatMessages, index, APP_CONFIG.chatTimestampGapMs);
+}
+
+function formatChatTime(createdAt) {
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function chatMessagesView() {
+  if (!chatMessages.length) return '<p class="chat-empty">No messages yet.</p>';
+  return chatMessages.map((message, index) => `<div class="chat-message"><div><strong>${escapeHtml(message.username)}</strong><span>: ${escapeHtml(message.message)}</span></div>${shouldShowChatTime(index) ? `<time class="chat-time" datetime="${escapeHtml(message.createdAt)}">${escapeHtml(formatChatTime(message.createdAt))}</time>` : ''}</div>`).join('');
+}
+
+function globalChatView() {
+  return `<aside class="global-chat ${chatOpen ? 'is-open' : ''}">${chatOpen ? `<section class="chat-popover card" aria-label="Global chat"><div class="chat-heading"><div><span class="eyebrow">Shared space</span><h2>Garden chat</h2></div><button class="icon-button" data-action="toggle-chat" aria-label="Close chat">×</button></div><div class="chat-messages" aria-live="polite">${chatMessagesView()}</div><form class="chat-form" id="chat-form"><input name="message" required maxlength="${APP_CONFIG.chatMaxMessageLength}" placeholder="Write a message" autocomplete="off"><button class="button" type="submit">Send</button></form></section>` : ''}<button class="chat-launcher button" data-action="toggle-chat" aria-expanded="${chatOpen}">${chatOpen ? 'Hide chat' : 'Chat'}</button></aside>`;
+}
+
+async function refreshChat() {
+  if (!currentUser) return;
+  try {
+    const nextMessages = await loadChatMessages();
+    if (Array.isArray(nextMessages)) {
+      chatMessages = nextMessages.slice(-APP_CONFIG.chatMaxMessages);
+      if (chatOpen) { const section = activeSection(); render(); setSection(section); }
+    }
+  } catch { /* The dashboard remains usable if chat is temporarily unavailable. */ }
+}
+
+function startChatPolling() {
+  clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(refreshChat, APP_CONFIG.chatPollIntervalMs);
+}
+
 function memoryCards() {
   if (!state.memories.length) return '<p class="empty-copy">No saved memories yet. Add only what you want the future assistant to know.</p>';
   return state.memories.map((memory) => `<div class="memory-row"><textarea data-memory-input="${memory.id}" maxlength="500">${escapeHtml(memory.text)}</textarea><div class="memory-actions"><button class="button button-quiet" data-save-memory="${memory.id}">Save</button><button class="text-button danger" data-remove-memory="${memory.id}">Delete</button></div></div>`).join('');
@@ -128,7 +167,7 @@ function render() {
     <section data-view="interests" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Interest Engine</span><h2>What feeds your curiosity?</h2><p>Ratings guide future content. You stay in control of the signal.</p></div></div><div class="interest-grid">${interestCards()}</div><article class="suggestions-panel"><div class="form-heading"><div><span class="eyebrow">Engine suggestions</span><h3>Branches worth exploring</h3></div><span class="eyebrow">Based on your map</span></div><div class="suggestion-grid">${suggestionCards()}</div></article><form class="card add-interest-form" id="add-interest-form"><div class="form-heading"><h3>Add an interest</h3><span class="eyebrow">Saved to your account</span></div><div class="form-fields"><label>Name<input name="name" required placeholder="e.g. cozy games"></label><label>Type<select name="category">${INTEREST_CATEGORIES.map((category) => `<option value="${category.id}">${category.label}</option>`).join('')}</select></label><label>Rating<select name="rating">${[1, 2, 3, 4, 5].map((rating) => `<option value="${rating}" ${rating === 3 ? 'selected' : ''}>${rating}/5</option>`).join('')}</select></label><button class="button" type="submit">Add interest</button></div></form><article class="card memory-panel"><div class="form-heading"><div><span class="eyebrow">Private memory</span><h3>What should the future assistant know?</h3></div><span class="eyebrow">Fully editable</span></div><p>Only memories saved here will be eligible as personal context for the assistant. You can edit or delete them at any time.</p><div class="memory-list">${memoryCards()}</div><form id="memory-form" class="memory-form"><textarea name="text" maxlength="500" required placeholder="Example: I prefer short, practical morning plans."></textarea><button class="button" type="submit">Save memory</button></form></article></section>
     <section data-view="games" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Games</span><h2>Learn by playing.</h2><p>Small games can help the garden understand what you enjoy, one answer at a time.</p></div></div><div class="game-page">${getToKnowMeView()}</div></section>
     <section data-view="projects" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Projects</span><h2>Keep the garden growing.</h2><p>Only the next useful actions belong here for now.</p></div></div><div class="project-grid">${projectCards()}</div></section>
-  </main><nav class="bottom-nav" aria-label="Primary navigation">${sections.map((item) => `<button data-nav="${item.id}" class="nav-item ${item.id === section ? 'is-selected' : ''}"><span class="nav-icon">${item.icon}</span><span>${item.label}</span></button>`).join('')}</nav><div id="modal-root"></div>`;
+  </main><nav class="bottom-nav" aria-label="Primary navigation">${sections.map((item) => `<button data-nav="${item.id}" class="nav-item ${item.id === section ? 'is-selected' : ''}"><span class="nav-icon">${item.icon}</span><span>${item.label}</span></button>`).join('')}</nav><div id="modal-root"></div>${globalChatView()}`;
   setSection(section);
   bindEvents();
 }
@@ -136,10 +175,12 @@ function render() {
 function bindEvents() {
   document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => setSection(button.dataset.nav)));
   document.querySelector('[data-action="toggle-mode"]')?.addEventListener('change', async (event) => { viewMode = event.currentTarget.checked ? 'admin' : 'user'; if (viewMode === 'admin') adminUsers = await loadAdminUsers(); render(); setSection(viewMode === 'admin' ? 'admin' : 'dashboard'); });
+  document.querySelectorAll('[data-action="toggle-chat"]').forEach((button) => button.addEventListener('click', () => { chatOpen = !chatOpen; const section = activeSection(); render(); setSection(section); }));
+  document.querySelector('#chat-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const input = event.currentTarget.elements.message; try { const message = await sendChatMessage(input.value); chatMessages = [...chatMessages, message].slice(-APP_CONFIG.chatMaxMessages); input.value = ''; chatOpen = true; const section = activeSection(); render(); setSection(section); } catch (error) { window.alert(error.message); } });
   document.querySelector('[data-action="start-game"]')?.addEventListener('click', () => { state.games.getToKnowMe = startRound(state.games.getToKnowMe, state.interests); saveState(state); render(); setSection('games'); });
   document.querySelectorAll('[data-game-answer]').forEach((button) => button.addEventListener('click', () => { try { const nextGame = recordAnswer(state.games.getToKnowMe, button.dataset.gameAnswer); const answer = nextGame.answers[nextGame.answers.length - 1]; state.games.getToKnowMe = nextGame; applyGameAnswer(answer); saveState(state); render(); setSection('games'); } catch (error) { window.alert(error.message); } }));
   document.querySelector('[data-action="account"]')?.addEventListener('click', () => renderAccountSettings());
-  document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
+  document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); clearInterval(chatPollTimer); currentUser = null; state = null; chatMessages = []; chatOpen = false; renderAuth(); });
   document.querySelector('#add-interest-form')?.addEventListener('submit', (event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); try { state.interests.push(createInterest({ name: formData.get('name'), category: formData.get('category'), rating: formData.get('rating') })); saveState(state); render(); setSection('interests'); } catch (error) { window.alert(error.message); } });
   document.querySelectorAll('[data-add-suggestion]').forEach((button) => button.addEventListener('click', () => { state.interests.push(createInterest({ name: button.dataset.addSuggestion, category: button.dataset.suggestionCategory, rating: 3, source: 'suggestion' })); saveState(state); render(); setSection('interests'); }));
   document.querySelectorAll('[data-remove-interest]').forEach((button) => button.addEventListener('click', () => { if (!window.confirm('Remove this interest?')) return; state.interests = state.interests.filter((interest) => interest.id !== button.dataset.removeInterest); saveState(state); render(); setSection('interests'); }));
@@ -162,13 +203,14 @@ function renderAuth(message = '') {
 }
 
 function renderAccountSettings(message = '') {
-  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="account-title"><div class="modal-topline"><span class="eyebrow">Account settings</span><button class="text-button" data-action="close-account">Close</button></div><h2 id="account-title">Update your sign-in</h2><p>Changing your username or password ends the current login after this update.</p>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="account-form" class="account-form"><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password <span class="field-note">leave blank to keep it</span><input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save changes</button></form></section></div>`;
+  const summary = summarizePreferences(state.interests);
+  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="account-title"><div class="modal-topline"><span class="eyebrow">Account settings</span><button class="text-button" data-action="close-account">Close</button></div><h2 id="account-title">Update your sign-in</h2><article class="account-summary"><span class="eyebrow">What we know about you</span><p>${escapeHtml(summary.text)}</p><span class="field-note">Based on your saved, editable interests.</span></article><p>Changing your username or password ends the current login after this update.</p>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="account-form" class="account-form"><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password <span class="field-note">leave blank to keep it</span><input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save changes</button></form></section></div>`;
   document.querySelector('[data-action="close-account"]').addEventListener('click', () => { document.querySelector('#modal-root').innerHTML = ''; });
   document.querySelector('#account-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await updateAccount(Object.fromEntries(values)); document.querySelector('#modal-root').innerHTML = ''; render(); } catch (error) { renderAccountSettings(error.message); } });
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? state.games : { getToKnowMe: createGetToKnowMeState() } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = await loadChatMessages().catch(() => []); if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? state.games : { getToKnowMe: createGetToKnowMeState() } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 

@@ -174,7 +174,22 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
 #auth-form { display: grid; gap: var(--space-3); }
 .form-error { border-radius: var(--radius-sm); padding: var(--space-3); background: #f5dddd; color: #813f3f; font-size: 0.9rem; }
 .account-form { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.account-summary { display: grid; gap: var(--space-2); margin-top: var(--space-4); padding: var(--space-3); border-left: 0.25rem solid var(--color-primary); background: var(--color-primary-soft); }
+.account-summary p { color: var(--color-text); font-size: 0.9rem; }
 .field-note { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 500; }
+.global-chat { position: fixed; right: 1rem; bottom: 5rem; z-index: 8; display: grid; justify-items: end; gap: var(--space-2); }
+.chat-launcher { min-height: 2.75rem; border-radius: 2rem; box-shadow: var(--shadow-soft); }
+.chat-popover { display: grid; width: min(calc(100vw - 2rem), 22rem); max-height: min(70vh, 34rem); gap: var(--space-3); padding: var(--space-3); box-shadow: 0 1rem 2.5rem rgba(38, 49, 39, 0.18); }
+.chat-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.chat-heading h2 { margin-top: var(--space-1); font-size: 1.2rem; }
+.chat-heading .icon-button { width: 2.25rem; height: 2.25rem; font-size: 1.1rem; }
+.chat-messages { display: grid; min-height: 5rem; max-height: 18rem; overflow-y: auto; align-content: start; gap: var(--space-2); padding: var(--space-2); background: var(--color-surface-muted); border-radius: var(--radius-sm); }
+.chat-message { color: var(--color-text); font-size: 0.85rem; overflow-wrap: anywhere; }
+.chat-message strong { color: var(--color-primary-dark); }
+.chat-time { display: block; margin-top: 0.1rem; color: var(--color-text-muted); font-size: 0.65rem; }
+.chat-empty { padding: var(--space-3); font-size: 0.8rem; }
+.chat-form { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); }
+.chat-form .button { min-height: 2.6rem; }
 
 @media (min-width: 38rem) {
   .topbar, .page-shell { width: min(100% - 3rem, 72rem); }
@@ -192,6 +207,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
   .topbar { padding-top: 2rem; }
   .page-shell { padding-top: var(--space-5); }
   .bottom-nav { right: auto; bottom: 1.5rem; left: 50%; width: min(100% - 3rem, 34rem); transform: translateX(-50%); border-bottom: 1px solid var(--color-border); border-radius: var(--radius-md); }
+  .global-chat { right: 1.5rem; bottom: 1.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }

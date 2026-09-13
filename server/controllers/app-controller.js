@@ -1,7 +1,14 @@
-export function createAppController(repository, auth) {
+export function createAppController(repository, auth, config) {
   return {
     async getState(user) { return repository.getState(user.id); },
     async listMembers() { return repository.listPublicUsers(); },
+    async listChatMessages() { return repository.listChatMessages(config.chatMaxMessages); },
+    async createChatMessage(user, body) {
+      const message = String(body?.message || '').trim();
+      if (!message) throw new Error('Message is required.');
+      if (message.length > config.chatMaxMessageLength) throw new Error(`Messages must be ${config.chatMaxMessageLength} characters or fewer.`);
+      return repository.createChatMessage({ userId: user.id, username: user.username, message, maxMessages: config.chatMaxMessages });
+    },
     async saveState(user, body) {
       if (!body || body.version !== 1 || !Array.isArray(body.interests) || !Array.isArray(body.projects)) throw new Error('Invalid application state.');
       return repository.saveState(user.id, body);

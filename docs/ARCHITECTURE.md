@@ -14,7 +14,7 @@
 
 The MVC separation is:
 
-- Model: `src/interest-engine.js`, `src/get-to-know-me.js`, `src/default-data.js`, and `server/models/repository.js`.
+- Model: `src/interest-engine.js`, `src/get-to-know-me.js`, `src/profile-summary.js`, `src/default-data.js`, and `server/models/repository.js`.
 - View: `public/index.html`, `public/styles.css`, and render functions in `src/app.js`.
 - Controller: `server/controllers/*` and `server/router.js`.
 
@@ -29,6 +29,8 @@ The browser can point at either the local Node API or the production Cloudflare 
 - `GET /api/members`
 - `GET /api/admin/users` (administrator only)
 - `POST /api/admin/users` (administrator only)
+- `GET /api/chat/messages`
+- `POST /api/chat/messages`
 - `GET /api/state`
 - `PUT /api/state`
 
@@ -62,6 +64,10 @@ Todos are a top-level shared collection so tasks can belong to a project without
 ### Get to know me
 
 `src/get-to-know-me.js` owns the question catalog, game state transitions, and a small preference-to-theme mapping. A round selects twenty questions using tag overlap with saved interests, records each answer, and avoids the immediately previous round when another round starts. The view applies each answer to the shared `interests` collection, so likes and dislikes remain editable in the Interests tab. The current theme is presentation-safe domain output rather than raw CSS logic, allowing a visual redesign later. The question catalog is local, deterministic, and free; it does not call YouTube or inspect private watch history.
+
+`src/profile-summary.js` converts the same ratings into a short, deterministic description for Account settings. It only summarizes saved interests and never calls an AI service or infers facts outside the stored map.
+
+`src/chat-engine.js` owns the presentation-independent timestamp grouping rule. Chat messages are global authenticated records, stored separately from per-user application state. The local adapter serializes them in the ignored `data/chat.json` file; production stores them in the free D1 `chat_messages` table. The browser polls the small capped history at a configured interval so both users see the shared conversation without a realtime service.
 
 Future integrations should adapt external data into a stable content object (`id`, `creator`, `topic`, `title`, `tags`) and call the engine. The engine should not call Gmail, YouTube, or calendar APIs directly.
 

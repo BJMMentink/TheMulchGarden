@@ -11,4 +11,6 @@ export const SERVER_CONFIG = Object.freeze({
   bodyLimitBytes: 100_000,
   secureCookies: process.env.NODE_ENV === 'production',
   maxAccounts: 2,
+  chatMaxMessageLength: 280,
+  chatMaxMessages: 100,
 });

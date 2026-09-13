@@ -4,7 +4,7 @@ import { BOOTSTRAP_ACCOUNT } from '../bootstrap.js';
 import { JsonStore } from '../lib/json-store.js';
 
 export class Repository {
-  constructor(directory) { this.users = new JsonStore(directory); this.sessions = new JsonStore(directory); this.userData = new JsonStore(directory); }
+  constructor(directory) { this.users = new JsonStore(directory); this.sessions = new JsonStore(directory); this.userData = new JsonStore(directory); this.chat = new JsonStore(directory); }
   async ensureBootstrapAccount() {
     const users = await this.users.read('users', []);
     const bootstrap = users.find((user) => user.username?.toLowerCase() === BOOTSTRAP_ACCOUNT.username.toLowerCase());
@@ -31,6 +31,14 @@ export class Repository {
   }
   async getState(userId) { const stored = await this.userData.read(`user-${userId}`, createInitialState()); return { ...createInitialState(), ...stored, memories: Array.isArray(stored.memories) ? stored.memories : [] }; }
   async saveState(userId, state) { await this.userData.write(`user-${userId}`, state); return state; }
+  async listChatMessages(limit) { return (await this.chat.read('chat', [])).slice(-limit); }
+  async createChatMessage({ userId, username, message, maxMessages }) {
+    const messages = await this.chat.read('chat', []);
+    const created = { id: randomUUID(), userId, username, message, createdAt: new Date().toISOString() };
+    messages.push(created);
+    await this.chat.write('chat', messages.slice(-maxMessages));
+    return created;
+  }
   async createSession(userId, digest, expiresAt) { const sessions = await this.sessions.read('sessions', []); sessions.push({ digest, userId, expiresAt }); await this.sessions.write('sessions', sessions); }
   async findSession(digest) { return (await this.sessions.read('sessions', [])).find((item) => item.digest === digest && item.expiresAt > Date.now()) || null; }
   async deleteSession(digest) { const sessions = await this.sessions.read('sessions', []); await this.sessions.write('sessions', sessions.filter((item) => item.digest !== digest)); }

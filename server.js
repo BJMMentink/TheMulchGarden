@@ -14,7 +14,7 @@ const SOURCE_ROOT = join(PROJECT_ROOT, 'src');
 const MIME_TYPES = Object.freeze({ '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' });
 const repository = new Repository(SERVER_CONFIG.dataDirectory);
 const auth = createAuthController(repository, SERVER_CONFIG);
-const app = createAppController(repository, auth);
+const app = createAppController(repository, auth, SERVER_CONFIG);
 const routeApi = createRouter({ auth, app, bodyLimit: SERVER_CONFIG.bodyLimitBytes });
 
 function staticPath(requestUrl) {

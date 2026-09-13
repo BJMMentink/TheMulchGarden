@@ -13,6 +13,7 @@
 - Initial Professional project: GMCHE art class.
 - A shared todo list with projects, tags, author labels, assignee labels, completion, search, and basic filters.
 - Responsive mobile-first layout and reusable visual tokens.
+- A small authenticated global chat popup with lightweight polling.
 
 ## Explicit non-goals
 
@@ -22,6 +23,7 @@
 - No automated briefing generation or read-aloud mode yet.
 - No cloud AI chatbot connection; V1 remains local and does not consume external AI usage.
 - No elaborate analytics, productivity scoring, notifications, drag-and-drop, or offline service worker.
+- No realtime chat transport, attachments, reactions, moderation system, or message editing in V1.
 - No visual polish sprint beyond functional hierarchy, accessibility basics, and responsive layout.
 
 ## V1 success signal
