@@ -65,9 +65,12 @@ async function verifyPassword(password, encoded) {
   try {
     const [scheme, iterationText, saltText, keyText] = String(encoded).split(':');
     if (scheme !== 'pbkdf2-sha256') return false;
-    const actual = await derive(password, fromB64(saltText), Number(iterationText));
+    const actual = await derive(typeof password === 'string' ? password : '', fromB64(saltText), Number(iterationText));
     const expected = fromB64(keyText);
-    return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
+    if (actual.length !== expected.length) return false;
+    let difference = 0;
+    for (let index = 0; index < expected.length; index += 1) difference |= actual[index] ^ expected[index];
+    return difference === 0;
   } catch { return false; }
 }
 
