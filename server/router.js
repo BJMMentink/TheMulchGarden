@@ -12,6 +12,7 @@ export function createRouter({ auth, app, bodyLimit }) {
       if (request.method === 'POST' && path === '/api/auth/logout') return send(response, 200, await auth.logout(request, response));
       const user = await app.requireUser(request);
       if (request.method === 'PATCH' && path === '/api/auth/me') return send(response, 200, { user: await auth.update(body, user) });
+      if (request.method === 'GET' && path === '/api/members') return send(response, 200, { members: await app.listMembers() });
       if (request.method === 'GET' && path === '/api/state') return send(response, 200, await app.getState(user));
       if (request.method === 'PUT' && path === '/api/state') return send(response, 200, await app.saveState(user, body));
       return send(response, 404, { error: 'Not found.' });

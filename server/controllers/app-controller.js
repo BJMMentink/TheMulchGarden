@@ -1,6 +1,7 @@
 export function createAppController(repository, auth) {
   return {
     async getState(user) { return repository.getState(user.id); },
+    async listMembers() { return repository.listPublicUsers(); },
     async saveState(user, body) {
       if (!body || body.version !== 1 || !Array.isArray(body.interests) || !Array.isArray(body.projects)) throw new Error('Invalid application state.');
       return repository.saveState(user.id, body);
@@ -12,4 +13,3 @@ export function createAppController(repository, auth) {
     },
   };
 }
-

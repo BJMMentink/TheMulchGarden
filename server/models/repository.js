@@ -13,6 +13,7 @@ export class Repository {
     }
   }
   async findUserByUsername(username) { return (await this.users.read('users', [])).find((user) => user.username?.toLowerCase() === username.toLowerCase()) || null; }
+  async listPublicUsers() { return (await this.users.read('users', [])).filter((user) => user.username).map(({ id, username }) => ({ id, username })).sort((left, right) => left.username.localeCompare(right.username)); }
   async countUsers() { return (await this.users.read('users', [])).filter((user) => user.username).length; }
   async updateUser(userId, changes) {
     const users = await this.users.read('users', []); const index = users.findIndex((user) => user.id === userId);

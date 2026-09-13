@@ -26,6 +26,7 @@ The browser can point at either the local Node API or the production Cloudflare 
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `PATCH /api/auth/me`
+- `GET /api/members`
 - `GET /api/state`
 - `PUT /api/state`
 
@@ -41,9 +42,12 @@ GitHub Pages is intentionally static. Cloudflare Worker + D1 provides the free p
   onboarding: { completed: Boolean, version: Number },
   interests: [{ id, name, category, rating, source }],
   projects: [{ id, name, type, color, todos: [{ id, title, done }] }],
+  todos: [{ id, title, done, projectId, tags, addedBy, assignedTo, createdAt, updatedAt }],
   feedback: [{ contentId, action, createdAt }]
 }
 ```
+
+Todos are a top-level shared collection so tasks can belong to a project without being owned by one project view. `addedBy` and `assignedTo` contain user IDs; `everyone` is the explicit all-users assignment. `GET /api/members` returns only user IDs and usernames for authenticated todo labels.
 
 ### Interest Engine
 

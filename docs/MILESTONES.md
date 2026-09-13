@@ -10,6 +10,7 @@
 
 - Render the mobile-first shell and navigation.
 - Add project/todo state and local persistence.
+- Add the shared todo page with member labels, tags, filtering, and edit/delete actions.
 - Add seeded projects and creator interests.
 
 ## Milestone 2 — Interest Engine and onboarding (complete)
@@ -30,4 +31,3 @@
 - Add public YouTube monitoring through an adapter.
 - Add curated news sources.
 - Add briefing assembly as a domain service.
-

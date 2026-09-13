@@ -11,7 +11,7 @@
 - Fully editable website memories reserved for future assistant context.
 - Initial Personal project: SaberDueler.
 - Initial Professional project: GMCHE art class.
-- Small todo lists and next-action capture.
+- A shared todo list with projects, tags, author labels, assignee labels, completion, search, and basic filters.
 - Responsive mobile-first layout and reusable visual tokens.
 
 ## Explicit non-goals

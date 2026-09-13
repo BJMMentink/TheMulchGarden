@@ -6,10 +6,13 @@ export const APP_CONFIG = Object.freeze({
   defaultSection: 'dashboard',
   onboardingVersion: 1,
   maxTodoTitleLength: 120,
+  maxTodoTags: 8,
+  maxTodoTagLength: 32,
 });
 
 export const SECTIONS = Object.freeze([
   { id: 'dashboard', label: 'Today', icon: '⌂' },
+  { id: 'todos', label: 'Todos', icon: '✓' },
   { id: 'interests', label: 'Interests', icon: '✦' },
   { id: 'projects', label: 'Projects', icon: '▦' },
 ]);

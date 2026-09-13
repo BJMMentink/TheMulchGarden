@@ -16,11 +16,17 @@ const DEFAULT_PROJECTS = [
   { id: 'project-gmche', name: 'GMCHE art class', type: 'Professional', color: 'green', todos: [{ id: 'todo-gmche-1', title: 'Prepare the next art class materials', done: false }] },
 ];
 
+const DEFAULT_TODOS = [
+  { id: 'todo-saberdueler-1', title: 'Define the next smallest playable slice', done: false, projectId: 'project-saberdueler', tags: ['next action'], addedBy: 'system', assignedTo: 'everyone', createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'todo-gmche-1', title: 'Prepare the next art class materials', done: false, projectId: 'project-gmche', tags: ['next action'], addedBy: 'system', assignedTo: 'everyone', createdAt: '2026-01-01T00:00:00.000Z' },
+];
+
 const initialState = () => ({
   version: 1,
   onboarding: { completed: false, version: 0 },
   interests: SEEDED_INTERESTS.map((item) => ({ ...item })),
   projects: DEFAULT_PROJECTS.map((item) => ({ ...item, todos: item.todos.map((todo) => ({ ...todo })) })),
+  todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
   feedback: [],
   memories: [],
 });
@@ -144,6 +150,11 @@ async function appState(request, env, user) {
   return json(body);
 }
 
+async function members(env) {
+  const result = await env.DB.prepare('SELECT id, username FROM users ORDER BY username COLLATE NOCASE').all();
+  return json({ members: result.results || [] });
+}
+
 async function route(request, env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return new Response('The Mulch Garden API', { status: 200 });
@@ -158,6 +169,7 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': expiredCookie() });
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
+  if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
   if (url.pathname === '/api/state' && ['GET', 'PUT'].includes(request.method)) return appState(request, env, user);
   return json({ error: 'Not found.' }, 404);
 }

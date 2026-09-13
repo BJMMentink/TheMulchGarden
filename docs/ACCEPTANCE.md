@@ -9,7 +9,9 @@
 - [x] Nuxinor, Luke Stephens, and Asmongold are seeded at 5/5.
 - [x] Users can add and rate interests in all four supported categories.
 - [x] SaberDueler and GMCHE art class are visible as separate projects.
-- [x] Users can add and complete todo items locally.
+- [x] Users can add, complete, edit, delete, search, and filter shared todo items.
+- [x] Todo items show who added them and whether they are for everyone or an individual account.
+- [x] Todo creation supports optional project and comma-separated tags.
 - [x] The layout works at phone and desktop widths without horizontal scrolling.
 - [x] Core Interest Engine behavior has automated tests.
 - [x] No private YouTube watch-history access or external service is required.
@@ -28,5 +30,5 @@ V1 is done when the acceptance criteria pass on a fresh browser profile, `node -
 2. Run `node server.js`.
 3. Create an account, refresh, sign in again, and confirm the seeded state remains.
 4. Open the local URL on desktop and a phone-sized viewport.
-5. Complete onboarding, add an interest, add a todo, and complete a todo.
+5. Complete onboarding, add an interest, add a shared todo with tags and an assignee, then complete and edit it.
 6. Confirm `data/` is ignored and no password hash appears in API responses.
