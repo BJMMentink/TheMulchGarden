@@ -116,9 +116,14 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
 .choice.is-chosen { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary-dark); }
 .choice-check { color: var(--color-primary); font-weight: 800; }
 .modal-actions { display: flex; justify-content: space-between; gap: var(--space-2); }
-.auth-shell { display: grid; min-height: 100vh; place-items: center; padding: var(--space-4); }
-.auth-card { width: min(100%, 28rem); display: grid; gap: var(--space-4); padding: var(--space-6); }
-.auth-card h1 { margin-top: calc(var(--space-2) * -1); }
+.auth-shell { display: grid; min-height: 100vh; place-items: center; padding: var(--space-4); background: #e9e9e3; }
+.auth-card { width: min(100%, 24rem); display: grid; gap: var(--space-5); padding: var(--space-6); border: 0; background: transparent; box-shadow: none; }
+.auth-card h1 { color: #4b4d48; font-weight: 500; letter-spacing: 0.01em; }
+.auth-card form { display: grid; gap: var(--space-4); }
+.auth-card label { color: #777a72; font-weight: 400; }
+.auth-card input { border-color: #d5d6cf; background: rgba(255, 255, 255, 0.38); }
+.auth-card .button { justify-self: start; background: #73766e; font-weight: 500; }
+.auth-card .button:hover { background: #5f625c; }
 .auth-tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--color-border); }
 .auth-tabs .is-active { border-bottom: 2px solid var(--color-primary); }
 #auth-form { display: grid; gap: var(--space-3); }

@@ -90,7 +90,7 @@ function bindEvents() {
 }
 
 function renderAuth(message = '') {
-  root.innerHTML = `<main class="auth-shell"><section class="auth-card card"><span class="eyebrow">Private garden</span><h1>The Mulch Garden</h1><p>Sign in to keep your projects and interests available across your devices.</p>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username" placeholder="Enter username"></label><label>Password<input type="password" name="password" required autocomplete="current-password" placeholder="Enter password"></label><button class="button" type="submit">Sign in</button></form></section></main>`;
+  root.innerHTML = `<main class="auth-shell"><section class="auth-card"><h1>The Mulch Garden</h1>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Sign in</button></form></section></main>`;
   document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); render(); } catch (error) { renderAuth(error.message); } });
 }
 
