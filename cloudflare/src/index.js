@@ -158,7 +158,7 @@ async function appState(request, env, user) {
 
 async function chatMessages(request, env, user) {
   if (request.method === 'GET') {
-    const result = await env.DB.prepare('SELECT id, username, message, created_at AS createdAt FROM chat_messages ORDER BY created_at DESC LIMIT ?').bind(CHAT_MAX_MESSAGES).all();
+    const result = await env.DB.prepare('SELECT id, user_id AS userId, username, message, created_at AS createdAt FROM chat_messages ORDER BY created_at DESC LIMIT ?').bind(CHAT_MAX_MESSAGES).all();
     return json({ messages: (result.results || []).reverse() });
   }
   const body = await readJson(request);
@@ -168,7 +168,7 @@ async function chatMessages(request, env, user) {
   const createdAt = new Date().toISOString();
   const id = userId();
   await env.DB.prepare('INSERT INTO chat_messages (id, user_id, username, message, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, user.id, user.username, message, createdAt).run();
-  return json({ message: { id, username: user.username, message, createdAt } }, 201);
+  return json({ message: { id, userId: user.id, username: user.username, message, createdAt } }, 201);
 }
 
 async function members(env) {

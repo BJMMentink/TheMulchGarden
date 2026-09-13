@@ -178,7 +178,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #9ecdad; ou
 .account-summary p { color: var(--color-text); font-size: 0.9rem; }
 .field-note { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 500; }
 .global-chat { position: fixed; right: 1rem; bottom: 5rem; z-index: 8; display: grid; justify-items: end; gap: var(--space-2); }
-.chat-launcher { min-height: 2.75rem; border-radius: 2rem; box-shadow: var(--shadow-soft); }
+.chat-launcher { position: relative; min-height: 2.75rem; border-radius: 2rem; box-shadow: var(--shadow-soft); }
+.chat-badge { display: inline-grid; min-width: 1.2rem; height: 1.2rem; margin-left: var(--space-2); place-items: center; border: 2px solid var(--color-surface); border-radius: 50%; background: #b64242; color: white; font-size: 0.64rem; line-height: 1; }
 .chat-popover { display: grid; width: min(calc(100vw - 2rem), 22rem); max-height: min(70vh, 34rem); gap: var(--space-3); padding: var(--space-3); box-shadow: 0 1rem 2.5rem rgba(38, 49, 39, 0.18); }
 .chat-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .chat-heading h2 { margin-top: var(--space-1); font-size: 1.2rem; }

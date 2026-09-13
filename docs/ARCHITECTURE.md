@@ -67,7 +67,7 @@ Todos are a top-level shared collection so tasks can belong to a project without
 
 `src/profile-summary.js` converts the same ratings into a short, deterministic description for Account settings. It only summarizes saved interests and never calls an AI service or infers facts outside the stored map.
 
-`src/chat-engine.js` owns the presentation-independent timestamp grouping rule. Chat messages are global authenticated records, stored separately from per-user application state. The local adapter serializes them in the ignored `data/chat.json` file; production stores them in the free D1 `chat_messages` table. The browser polls the small capped history at a configured interval so both users see the shared conversation without a realtime service.
+`src/chat-engine.js` owns the presentation-independent timestamp grouping and new-message detection rules. Chat messages are global authenticated records, stored separately from per-user application state. The local adapter serializes them in the ignored `data/chat.json` file; production stores them in the free D1 `chat_messages` table. The browser polls the small capped history at a configured interval, re-renders when new messages arrive, and keeps an unread count while closed so both users see the shared conversation without a realtime service.
 
 Future integrations should adapt external data into a stable content object (`id`, `creator`, `topic`, `title`, `tags`) and call the engine. The engine should not call Gmail, YouTube, or calendar APIs directly.
 

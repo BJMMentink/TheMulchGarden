@@ -1,6 +1,6 @@
 import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS, USER_ROLES } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
-import { shouldShowChatTimestamp } from './chat-engine.js';
+import { findNewChatMessages, shouldShowChatTimestamp } from './chat-engine.js';
 import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer, startRound } from './get-to-know-me.js';
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
@@ -12,6 +12,7 @@ let members = [];
 let adminUsers = [];
 let chatMessages = [];
 let chatOpen = false;
+let chatUnreadCount = 0;
 let chatPollTimer;
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
@@ -110,7 +111,8 @@ function chatMessagesView() {
 }
 
 function globalChatView() {
-  return `<aside class="global-chat ${chatOpen ? 'is-open' : ''}">${chatOpen ? `<section class="chat-popover card" aria-label="Global chat"><div class="chat-heading"><div><span class="eyebrow">Shared space</span><h2>Garden chat</h2></div><button class="icon-button" data-action="toggle-chat" aria-label="Close chat">×</button></div><div class="chat-messages" aria-live="polite">${chatMessagesView()}</div><form class="chat-form" id="chat-form"><input name="message" required maxlength="${APP_CONFIG.chatMaxMessageLength}" placeholder="Write a message" autocomplete="off"><button class="button" type="submit">Send</button></form></section>` : ''}<button class="chat-launcher button" data-action="toggle-chat" aria-expanded="${chatOpen}">${chatOpen ? 'Hide chat' : 'Chat'}</button></aside>`;
+  const badge = chatUnreadCount ? `<span class="chat-badge" aria-label="${chatUnreadCount} unread message${chatUnreadCount === 1 ? '' : 's'}">${chatUnreadCount > 9 ? '9+' : chatUnreadCount}</span>` : '';
+  return `<aside class="global-chat ${chatOpen ? 'is-open' : ''}">${chatOpen ? `<section class="chat-popover card" aria-label="Global chat"><div class="chat-heading"><div><span class="eyebrow">Shared space</span><h2>Garden chat</h2></div><button class="icon-button" data-action="toggle-chat" aria-label="Close chat">×</button></div><div class="chat-messages" aria-live="polite">${chatMessagesView()}</div><form class="chat-form" id="chat-form"><input name="message" required maxlength="${APP_CONFIG.chatMaxMessageLength}" placeholder="Write a message" autocomplete="off"><button class="button" type="submit">Send</button></form></section>` : ''}<button class="chat-launcher button" data-action="toggle-chat" aria-expanded="${chatOpen}">${chatOpen ? 'Hide chat' : 'Chat'}${badge}</button></aside>`;
 }
 
 async function refreshChat() {
@@ -118,8 +120,12 @@ async function refreshChat() {
   try {
     const nextMessages = await loadChatMessages();
     if (Array.isArray(nextMessages)) {
+      const newMessages = findNewChatMessages(chatMessages, nextMessages);
       chatMessages = nextMessages.slice(-APP_CONFIG.chatMaxMessages);
-      if (chatOpen) { const section = activeSection(); render(); setSection(section); }
+      const incomingMessages = newMessages.filter((message) => message.userId !== currentUser.id && message.username !== currentUser.username);
+      if (chatOpen) chatUnreadCount = 0;
+      else chatUnreadCount += incomingMessages.length;
+      if (newMessages.length) { const section = activeSection(); render(); setSection(section); }
     }
   } catch { /* The dashboard remains usable if chat is temporarily unavailable. */ }
 }
@@ -175,12 +181,12 @@ function render() {
 function bindEvents() {
   document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => setSection(button.dataset.nav)));
   document.querySelector('[data-action="toggle-mode"]')?.addEventListener('change', async (event) => { viewMode = event.currentTarget.checked ? 'admin' : 'user'; if (viewMode === 'admin') adminUsers = await loadAdminUsers(); render(); setSection(viewMode === 'admin' ? 'admin' : 'dashboard'); });
-  document.querySelectorAll('[data-action="toggle-chat"]').forEach((button) => button.addEventListener('click', () => { chatOpen = !chatOpen; const section = activeSection(); render(); setSection(section); }));
+  document.querySelectorAll('[data-action="toggle-chat"]').forEach((button) => button.addEventListener('click', () => { chatOpen = !chatOpen; if (chatOpen) chatUnreadCount = 0; const section = activeSection(); render(); setSection(section); }));
   document.querySelector('#chat-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const input = event.currentTarget.elements.message; try { const message = await sendChatMessage(input.value); chatMessages = [...chatMessages, message].slice(-APP_CONFIG.chatMaxMessages); input.value = ''; chatOpen = true; const section = activeSection(); render(); setSection(section); } catch (error) { window.alert(error.message); } });
   document.querySelector('[data-action="start-game"]')?.addEventListener('click', () => { state.games.getToKnowMe = startRound(state.games.getToKnowMe, state.interests); saveState(state); render(); setSection('games'); });
   document.querySelectorAll('[data-game-answer]').forEach((button) => button.addEventListener('click', () => { try { const nextGame = recordAnswer(state.games.getToKnowMe, button.dataset.gameAnswer); const answer = nextGame.answers[nextGame.answers.length - 1]; state.games.getToKnowMe = nextGame; applyGameAnswer(answer); saveState(state); render(); setSection('games'); } catch (error) { window.alert(error.message); } }));
   document.querySelector('[data-action="account"]')?.addEventListener('click', () => renderAccountSettings());
-  document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); clearInterval(chatPollTimer); currentUser = null; state = null; chatMessages = []; chatOpen = false; renderAuth(); });
+  document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); clearInterval(chatPollTimer); currentUser = null; state = null; chatMessages = []; chatOpen = false; chatUnreadCount = 0; renderAuth(); });
   document.querySelector('#add-interest-form')?.addEventListener('submit', (event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); try { state.interests.push(createInterest({ name: formData.get('name'), category: formData.get('category'), rating: formData.get('rating') })); saveState(state); render(); setSection('interests'); } catch (error) { window.alert(error.message); } });
   document.querySelectorAll('[data-add-suggestion]').forEach((button) => button.addEventListener('click', () => { state.interests.push(createInterest({ name: button.dataset.addSuggestion, category: button.dataset.suggestionCategory, rating: 3, source: 'suggestion' })); saveState(state); render(); setSection('interests'); }));
   document.querySelectorAll('[data-remove-interest]').forEach((button) => button.addEventListener('click', () => { if (!window.confirm('Remove this interest?')) return; state.interests = state.interests.filter((interest) => interest.id !== button.dataset.removeInterest); saveState(state); render(); setSection('interests'); }));
@@ -210,7 +216,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = await loadChatMessages().catch(() => []); if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? state.games : { getToKnowMe: createGetToKnowMeState() } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); chatUnreadCount = 0; if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? state.games : { getToKnowMe: createGetToKnowMeState() } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 

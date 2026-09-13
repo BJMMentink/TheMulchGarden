@@ -9,7 +9,7 @@ export const APP_CONFIG = Object.freeze({
   chatMaxMessageLength: 280,
   chatMaxMessages: 100,
   chatTimestampGapMs: 30 * 60 * 1000,
-  chatPollIntervalMs: 30 * 1000,
+  chatPollIntervalMs: 10 * 1000,
   maxTodoTitleLength: 120,
   maxTodoTags: 8,
   maxTodoTagLength: 32,

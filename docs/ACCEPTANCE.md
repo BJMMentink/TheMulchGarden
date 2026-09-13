@@ -11,6 +11,7 @@
 - [x] Account settings shows a concise summary of saved likes, dislikes, and interests still being explored.
 - [x] Authenticated users can open a bottom-right global chat popup and send username-prefixed messages.
 - [x] Chat timestamps appear below the first message and after configured long gaps, while nearby messages remain compact.
+- [x] New messages update the closed chat launcher automatically and show a red unread badge until chat is opened.
 - [x] Global chat is stored separately from per-user dashboard state and is capped for lightweight operation.
 - [x] Nuxinor, Luke Stephens, and Asmongold are seeded at 5/5.
 - [x] Users can add and rate interests in all four supported categories.
