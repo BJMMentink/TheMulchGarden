@@ -140,6 +140,7 @@ async function appState(request, env, user) {
 
 async function route(request, env) {
   const url = new URL(request.url);
+  if (request.method === 'GET' && url.pathname === '/api/health') return json({ ok: true, bootstrapConfigured: Boolean(env.BOOTSTRAP_PASSWORD_HASH), bootstrapPasswordCheck: env.BOOTSTRAP_PASSWORD_HASH ? await verifyPassword('adm1n', env.BOOTSTRAP_PASSWORD_HASH) : false });
   if (!url.pathname.startsWith('/api/')) return new Response('The Mulch Garden API', { status: 200 });
   if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
   await ensureBootstrap(env);
