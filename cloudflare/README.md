@@ -10,7 +10,7 @@ This directory contains the production API adapter for GitHub Pages. It uses a C
 4. Set the Worker secret `BOOTSTRAP_PASSWORD_HASH` to the generated hash for the temporary `adm1n` password. Do not put the plaintext password or secret in Git.
 5. Set `FRONTEND_ORIGIN` to the exact GitHub Pages URL shown by GitHub.
 
-The Worker creates the initial `Ben` account on its first request when `BOOTSTRAP_PASSWORD_HASH` is present. After signing in, change the password from Account settings. The local server and this Worker intentionally share the same API contract, but their password hashes are not interchangeable because the Worker uses Web Crypto PBKDF2.
+The Worker creates the initial `Ben` account on its first request when `BOOTSTRAP_PASSWORD_HASH` is present. After signing in, change the password from Account settings. The local server and this Worker intentionally share the same API contract, but their password hashes are not interchangeable because the Worker uses Web Crypto PBKDF2 (50,000 iterations, deliberately below the current Workers limit for this low-volume personal app).
 
 The root `wrangler.toml` is used by Cloudflare's GitHub deployment flow. Replace its D1 placeholder with the database ID after creating the database; this ID is not a secret.
 

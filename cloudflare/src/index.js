@@ -1,6 +1,7 @@
 const SESSION_COOKIE = 'mg_session';
 const DEFAULT_SESSION_DAYS = 14;
-const PASSWORD_ITERATIONS = 600000;
+// Keep comfortably below Cloudflare Workers' 100,000-iteration PBKDF2 cap.
+const PASSWORD_ITERATIONS = 50000;
 const PASSWORD_KEY_BITS = 256;
 const MAX_BODY_BYTES = 100000;
 
