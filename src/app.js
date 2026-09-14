@@ -5,7 +5,7 @@ import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer,
 import { createWordleState, getDailyAnswer, getWordleDate, resetWordleForDate, submitWordleGuess } from './wordle.js';
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { createAdminUser, getCurrentUser, loadAdminUsers, loadChatMessages, loadMembers, loadState, login, logout, saveState, sendChatMessage, updateAccount } from './storage.js';
+import { createAdminUser, getCurrentUser, loadAdminUsers, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, saveState, sendChatMessage, updateAccount } from './storage.js';
 
 let state;
 let currentUser;
@@ -15,6 +15,7 @@ let chatMessages = [];
 let chatOpen = false;
 let chatUnreadCount = 0;
 let chatPollTimer;
+let dailyWordle = { date: getWordleDate(), answer: getDailyAnswer() };
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
 let viewMode = 'user';
@@ -88,7 +89,7 @@ function getToKnowMeView() {
 
 function wordleView() {
   const game = state.games.wordle;
-  const answer = getDailyAnswer(new Date(`${game.date}T00:00:00Z`));
+  const answer = game.date === dailyWordle.date ? dailyWordle.answer : getDailyAnswer(new Date(`${game.date}T00:00:00Z`));
   const rows = Array.from({ length: APP_CONFIG.wordleMaxGuesses }, (_, index) => {
     const guess = game.guesses[index];
     return `<div class="wordle-row">${Array.from({ length: APP_CONFIG.wordleWordLength }, (_, letterIndex) => guess ? `<span class="wordle-cell is-${guess.result[letterIndex]}">${guess.word[letterIndex]}</span>` : '<span class="wordle-cell"></span>').join('')}</div>`;
@@ -196,7 +197,7 @@ function bindEvents() {
   document.querySelectorAll('[data-action="toggle-chat"]').forEach((button) => button.addEventListener('click', () => { chatOpen = !chatOpen; if (chatOpen) chatUnreadCount = 0; const section = activeSection(); render(); setSection(section); }));
   document.querySelector('#chat-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const input = event.currentTarget.elements.message; try { const message = await sendChatMessage(input.value); chatMessages = [...chatMessages, message].slice(-APP_CONFIG.chatMaxMessages); input.value = ''; chatOpen = true; const section = activeSection(); render(); setSection(section); } catch (error) { window.alert(error.message); } });
   document.querySelector('[data-action="start-game"]')?.addEventListener('click', () => { state.games.getToKnowMe = startRound(state.games.getToKnowMe, state.interests); saveState(state); render(); setSection('games'); });
-  document.querySelector('#wordle-form')?.addEventListener('submit', (event) => { event.preventDefault(); const input = event.currentTarget.elements.guess; try { state.games.wordle = submitWordleGuess(state.games.wordle, input.value, getDailyAnswer(new Date(`${state.games.wordle.date}T00:00:00Z`))); saveState(state); render(); setSection('games'); } catch (error) { window.alert(error.message); } });
+  document.querySelector('#wordle-form')?.addEventListener('submit', (event) => { event.preventDefault(); const input = event.currentTarget.elements.guess; try { const answer = state.games.wordle.date === dailyWordle.date ? dailyWordle.answer : getDailyAnswer(new Date(`${state.games.wordle.date}T00:00:00Z`)); state.games.wordle = submitWordleGuess(state.games.wordle, input.value, answer); saveState(state); render(); setSection('games'); } catch (error) { window.alert(error.message); } });
   document.querySelectorAll('[data-game-answer]').forEach((button) => button.addEventListener('click', () => { try { const nextGame = recordAnswer(state.games.getToKnowMe, button.dataset.gameAnswer); const answer = nextGame.answers[nextGame.answers.length - 1]; state.games.getToKnowMe = nextGame; applyGameAnswer(answer); saveState(state); render(); setSection('games'); } catch (error) { window.alert(error.message); } }));
   document.querySelector('[data-action="account"]')?.addEventListener('click', () => renderAccountSettings());
   document.querySelector('[data-action="logout"]')?.addEventListener('click', async () => { await logout(); clearInterval(chatPollTimer); currentUser = null; state = null; chatMessages = []; chatOpen = false; chatUnreadCount = 0; renderAuth(); });
@@ -229,7 +230,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); chatUnreadCount = 0; if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, getWordleDate()) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState() } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 

@@ -3,6 +3,13 @@ export function createAppController(repository, auth, config) {
     async getState(user) { return repository.getState(user.id); },
     async listMembers() { return repository.listPublicUsers(); },
     async listChatMessages() { return repository.listChatMessages(config.chatMaxMessages); },
+    async dailyWordle() {
+      const date = new Date().toISOString().slice(0, 10);
+      const response = await fetch(`https://www.nytimes.com/svc/wordle/v2/${date}.json`);
+      if (!response.ok) throw new Error('Daily Wordle is temporarily unavailable.');
+      const payload = await response.json();
+      return { date, answer: String(payload.solution || '').toLocaleUpperCase() };
+    },
     async createChatMessage(user, body) {
       const message = String(body?.message || '').trim();
       if (!message) throw new Error('Message is required.');

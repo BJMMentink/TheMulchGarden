@@ -171,6 +171,14 @@ async function chatMessages(request, env, user) {
   return json({ message: { id, userId: user.id, username: user.username, message, createdAt } }, 201);
 }
 
+async function dailyWordle() {
+  const date = new Date().toISOString().slice(0, 10);
+  const response = await fetch(`https://www.nytimes.com/svc/wordle/v2/${date}.json`);
+  if (!response.ok) throw new Error('Daily Wordle is temporarily unavailable.');
+  const payload = await response.json();
+  return json({ date, answer: String(payload.solution || '').toLocaleUpperCase() });
+}
+
 async function members(env) {
   const result = await env.DB.prepare('SELECT id, username FROM users ORDER BY username COLLATE NOCASE').all();
   return json({ members: result.results || [] });
@@ -220,6 +228,7 @@ async function route(request, env) {
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
+  if (request.method === 'GET' && url.pathname === '/api/wordle/today') return dailyWordle();
   if (url.pathname === '/api/chat/messages' && ['GET', 'POST'].includes(request.method)) return chatMessages(request, env, user);
   if (url.pathname === '/api/admin/users' && ['GET', 'POST'].includes(request.method)) return adminUsers(request, env, user);
   if (url.pathname === '/api/state' && ['GET', 'PUT'].includes(request.method)) return appState(request, env, user);

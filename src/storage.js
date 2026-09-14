@@ -19,6 +19,7 @@ export async function logout() { try { await request('/api/auth/logout', { metho
 export async function loadState() { return request('/api/state'); }
 export async function loadMembers() { return (await request('/api/members')).members; }
 export async function loadChatMessages() { return (await request('/api/chat/messages')).messages; }
+export async function loadDailyWordle() { return request('/api/wordle/today'); }
 export async function sendChatMessage(message) { return (await request('/api/chat/messages', { method: 'POST', body: JSON.stringify({ message }) })).message; }
 export async function loadAdminUsers() { return (await request('/api/admin/users')).users; }
 export async function createAdminUser(user) { return (await request('/api/admin/users', { method: 'POST', body: JSON.stringify(user) })).user; }
