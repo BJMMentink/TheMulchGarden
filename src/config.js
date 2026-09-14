@@ -5,6 +5,8 @@ export const APP_CONFIG = Object.freeze({
   minInterestRating: 1,
   defaultSection: 'dashboard',
   getToKnowMeQuestionCount: 20,
+  wordleWordLength: 5,
+  wordleMaxGuesses: 6,
   profileSummaryNameLimit: 3,
   chatMaxMessageLength: 280,
   chatMaxMessages: 100,

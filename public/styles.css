@@ -141,6 +141,22 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .game-theme-gaming, .game-theme-technology, .game-theme-creative, .game-theme-professional, .game-theme-everyday { border-top: 0.3rem solid var(--game-accent); }
 .game-intro h3, .game-complete h3, .game-card h3 { margin-top: var(--space-1); }
 .game-intro p, .game-complete p, .game-note { max-width: 42rem; }
+.wordle-card { border-top: 0.3rem solid var(--color-primary); }
+.wordle-status { border-radius: 2rem; padding: 0.25rem 0.55rem; background: var(--color-surface-muted); color: var(--color-text-muted); font-size: 0.75rem; font-weight: 800; }
+.wordle-status.won { background: var(--color-primary-soft); color: #f0aeb5; }
+.wordle-status.lost { color: var(--color-danger); }
+.wordle-board { display: grid; gap: 0.35rem; width: min(100%, 20rem); margin-inline: auto; }
+.wordle-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.35rem; }
+.wordle-cell { display: grid; aspect-ratio: 1; place-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-input); color: var(--color-text); font-size: clamp(1.1rem, 5vw, 1.5rem); font-weight: 850; }
+.wordle-cell.is-correct, .wordle-legend i.is-correct { border-color: #7c9a6a; background: #38502e; }
+.wordle-cell.is-present, .wordle-legend i.is-present { border-color: #b28754; background: #5b4225; }
+.wordle-cell.is-absent, .wordle-legend i.is-absent { border-color: #46434a; background: #29272d; color: #9b959a; }
+.wordle-form { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); }
+.wordle-form input { text-transform: uppercase; letter-spacing: 0.16em; font-weight: 800; }
+.wordle-legend { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--color-text-muted); font-size: 0.72rem; }
+.wordle-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.wordle-legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border: 1px solid; border-radius: 0.2rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .game-intro .button, .game-complete .button { justify-self: start; }
 .game-theme-summary { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--game-accent-soft); }
 .game-theme-summary strong { color: var(--game-accent); }
