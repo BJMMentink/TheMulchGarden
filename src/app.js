@@ -1,16 +1,15 @@
-import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS, USER_ROLES } from './config.js';
+import { APP_CONFIG, INTEREST_CATEGORIES, SECTIONS } from './config.js';
 import { createInterest, suggestInterestCandidates } from './interest-engine.js';
 import { findNewChatMessages, shouldShowChatTimestamp } from './chat-engine.js';
 import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer, startRound } from './get-to-know-me.js';
 import { createWordleState, getDailyAnswer, getWordleDate, resetWordleForDate, submitWordleGuess } from './wordle.js';
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { getCurrentUser, loadAdminUsers, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, saveState, sendChatMessage, updateAccount } from './storage.js';
+import { getCurrentUser, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, saveState, sendChatMessage, updateAccount } from './storage.js';
 
 let state;
 let currentUser;
 let members = [];
-let adminUsers = [];
 let chatMessages = [];
 let chatOpen = false;
 let chatUnreadCount = 0;
@@ -18,7 +17,6 @@ let chatPollTimer;
 let dailyWordle = { date: getWordleDate(), answer: getDailyAnswer() };
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
-let viewMode = 'user';
 let activeGame = null;
 const root = document.querySelector('#app');
 
@@ -42,16 +40,8 @@ function setSection(section) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function isAdmin() {
-  return currentUser?.role === USER_ROLES.ADMIN;
-}
-
-function isAdminMode() {
-  return isAdmin() && viewMode === 'admin';
-}
-
 function visibleSections() {
-  return isAdminMode() ? [...SECTIONS, { id: 'admin', label: 'Admin', icon: '⚙' }] : SECTIONS;
+  return SECTIONS;
 }
 
 function todoMembers() {
@@ -187,19 +177,13 @@ function todoCards() {
   }).join('');
 }
 
-function adminUserCards() {
-  if (!adminUsers.length) return '<article class="card empty-state"><h3>No accounts found.</h3><p>The administrator account list is empty.</p></article>';
-  return adminUsers.map((user) => `<article class="admin-user-card card"><div><span class="eyebrow">${escapeHtml(user.role === USER_ROLES.ADMIN ? 'Administrator' : 'User')}</span><h3>${escapeHtml(user.username)}</h3></div><span class="count-badge">${user.id === currentUser.id ? 'You' : 'Account'}</span></article>`).join('');
-}
-
 function render() {
   const sections = visibleSections();
   const section = sections.some((item) => item.id === activeSection()) ? activeSection() : APP_CONFIG.defaultSection;
-  root.innerHTML = `<header class="topbar"><div><p class="eyebrow">${escapeHtml(currentUser.username)} · Personal command center</p><h1>The Mulch Garden</h1></div><div class="topbar-actions">${isAdmin() ? `<label class="mode-switch"><input type="checkbox" data-action="toggle-mode" ${isAdminMode() ? 'checked' : ''}><span>${isAdminMode() ? 'Admin mode' : 'User mode'}</span></label>` : ''}<button class="text-button" data-action="account">Account</button><button class="text-button" data-action="logout">Log out</button></div></header>
+  root.innerHTML = `<header class="topbar"><div><p class="eyebrow">${escapeHtml(currentUser.username)} · Personal command center</p><h1>The Mulch Garden</h1></div><div class="topbar-actions"><button class="text-button" data-action="account">Account</button><button class="text-button" data-action="logout">Log out</button></div></header>
       <main class="page-shell">
     <section data-view="dashboard" class="view"><div class="welcome-panel card"><div><span class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span><h2>Tend what matters today.</h2><p>Your small, local-first hub for projects, attention, and a little signal.</p></div><div class="garden-mark" aria-hidden="true">✿</div></div><div class="section-heading"><div><span class="eyebrow">Today</span><h2>Good soil for a start</h2></div></div><div class="briefing-grid"><article class="card briefing-card"><span class="card-icon">✓</span><div><span class="eyebrow">Open work</span><strong>${state.todos.filter((todo) => !todo.done).length} tasks</strong><p>Keep the next action visible.</p></div></article><article class="card briefing-card"><span class="card-icon">✦</span><div><span class="eyebrow">Attention</span><strong>${state.interests.length} interests</strong><p>Weighted by what you care about.</p></div></article></div><article class="card next-step"><div><span class="eyebrow">Suggested next step</span><h3>Grow your interest map</h3><p>Add a creator, topic, game, or keyword. Ratings help the engine prioritize future content.</p></div><button class="button" data-nav="interests">Review interests</button></article></section>
     <section data-view="todos" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Shared todos</span><h2>What needs tending?</h2><p>Everyone can see the same list. Each task keeps its author and intended person visible.</p></div></div><form class="card todo-composer" id="todo-form"><div class="form-heading"><h3>Add a shared todo</h3><span class="eyebrow">Added by ${escapeHtml(currentUser.username)}</span></div><label>Task<input name="title" required maxlength="${APP_CONFIG.maxTodoTitleLength}" placeholder="What needs doing?" autocomplete="off"></label><div class="todo-form-fields"><label>Tags<input name="tags" maxlength="${APP_CONFIG.maxTodoTags * APP_CONFIG.maxTodoTagLength}" placeholder="home, urgent"></label><label>Project<select name="projectId"><option value="">No project</option>${state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join('')}</select></label><label>For<select name="assignedTo">${memberOptions()}</select></label></div><button class="button" type="submit">Add todo</button></form><div class="todo-toolbar card"><label>Search<input data-todo-filter="query" value="${escapeHtml(todoFilters.query)}" placeholder="Search todos or tags"></label><label>Status<select data-todo-filter="status"><option value="open" ${todoFilters.status === 'open' ? 'selected' : ''}>Open</option><option value="all" ${todoFilters.status === 'all' ? 'selected' : ''}>All</option><option value="completed" ${todoFilters.status === 'completed' ? 'selected' : ''}>Completed</option></select></label><label>Assigned to<select data-todo-filter="assignedTo"><option value="all">Everyone / anyone</option>${memberOptions(todoFilters.assignedTo)}</select></label></div><div class="todo-list-page">${todoCards()}</div></section>
-    <section data-view="admin" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Administration</span><h2>Keep the garden well tended.</h2><p>Admin tools are visible only while admin mode is active.</p></div></div><div class="admin-grid">${adminUserCards()}</div></section>
     <section data-view="interests" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Interest Engine</span><h2>What feeds your curiosity?</h2><p>Ratings guide future content. You stay in control of the signal.</p></div></div><div class="interest-grid">${interestCards()}</div><article class="suggestions-panel"><div class="form-heading"><div><span class="eyebrow">Engine suggestions</span><h3>Branches worth exploring</h3></div><span class="eyebrow">Based on your map</span></div><div class="suggestion-grid">${suggestionCards()}</div></article><form class="card add-interest-form" id="add-interest-form"><div class="form-heading"><h3>Add an interest</h3><span class="eyebrow">Saved to your account</span></div><div class="form-fields"><label>Name<input name="name" required placeholder="e.g. cozy games"></label><label>Type<select name="category">${INTEREST_CATEGORIES.map((category) => `<option value="${category.id}">${category.label}</option>`).join('')}</select></label><label>Rating<select name="rating">${[1, 2, 3, 4, 5].map((rating) => `<option value="${rating}" ${rating === 3 ? 'selected' : ''}>${rating}/5</option>`).join('')}</select></label><button class="button" type="submit">Add interest</button></div></form><article class="card memory-panel"><div class="form-heading"><div><span class="eyebrow">Private memory</span><h3>What should the future assistant know?</h3></div><span class="eyebrow">Fully editable</span></div><p>Only memories saved here will be eligible as personal context for the assistant. You can edit or delete them at any time.</p><div class="memory-list">${memoryCards()}</div><form id="memory-form" class="memory-form"><textarea name="text" maxlength="500" required placeholder="Example: I prefer short, practical morning plans."></textarea><button class="button" type="submit">Save memory</button></form></article></section>
     <section data-view="games" class="view" hidden>${gamesView()}</section>
     <section data-view="projects" class="view" hidden><div class="section-heading"><div><span class="eyebrow">Projects</span><h2>Keep the garden growing.</h2><p>Only the next useful actions belong here for now.</p></div></div><div class="project-grid">${projectCards()}</div></section>
@@ -210,7 +194,6 @@ function render() {
 
 function bindEvents() {
   document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => setSection(button.dataset.nav)));
-  document.querySelector('[data-action="toggle-mode"]')?.addEventListener('change', async (event) => { viewMode = event.currentTarget.checked ? 'admin' : 'user'; if (viewMode === 'admin') adminUsers = await loadAdminUsers(); render(); setSection(viewMode === 'admin' ? 'admin' : 'dashboard'); });
   document.querySelectorAll('[data-action="toggle-chat"]').forEach((button) => button.addEventListener('click', () => { chatOpen = !chatOpen; if (chatOpen) chatUnreadCount = 0; const section = activeSection(); render(); setSection(section); }));
   document.querySelectorAll('[data-open-game]').forEach((button) => button.addEventListener('click', () => { activeGame = button.dataset.openGame; render(); setSection('games'); }));
   document.querySelector('[data-action="close-game"]')?.addEventListener('click', () => { activeGame = null; render(); setSection('games'); });
@@ -249,7 +232,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } viewMode = isAdmin() ? 'admin' : 'user'; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; if (isAdminMode()) adminUsers = await loadAdminUsers().catch(() => []); state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 

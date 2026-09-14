@@ -123,11 +123,6 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .todo-tag { background: var(--color-surface-muted); color: var(--color-text-muted); }
 .person-tag { border: 1px solid var(--color-border); color: var(--color-text-muted); }
 .todo-actions { display: flex; flex: 0 0 auto; gap: var(--space-3); }
-.mode-switch { display: flex; align-items: center; gap: var(--space-2); color: var(--color-primary-dark); font-size: 0.72rem; font-weight: 750; white-space: nowrap; }
-.mode-switch input { width: 2.1rem; min-height: 1.1rem; accent-color: var(--color-primary); }
-.admin-grid { display: grid; gap: var(--space-3); }
-.admin-user-card { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4); }
-.admin-user-card h3 { margin-top: var(--space-1); }
 .game-page { display: grid; gap: var(--space-3); }
 .game-intro, .game-complete, .game-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
 .game-intro { grid-template-columns: auto 1fr; align-items: start; }
