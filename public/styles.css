@@ -141,6 +141,21 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .game-theme-gaming, .game-theme-technology, .game-theme-creative, .game-theme-professional, .game-theme-everyday { border-top: 0.3rem solid var(--game-accent); }
 .game-intro h3, .game-complete h3, .game-card h3 { margin-top: var(--space-1); }
 .game-intro p, .game-complete p, .game-note { max-width: 42rem; }
+.games-launcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.game-tile { position: relative; display: grid; min-height: 12rem; align-content: space-between; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border); color: var(--color-text); text-align: left; cursor: pointer; transition: border-color 160ms ease, transform 160ms ease, background-color 160ms ease; }
+.game-tile:hover { border-color: var(--color-primary); background: var(--color-surface-raised); transform: translateY(-0.15rem); }
+.game-tile-icon { color: var(--color-primary); font-size: 3rem; line-height: 1; }
+.game-tile-copy { display: grid; gap: 0.25rem; }
+.game-tile-copy strong { font-size: 1rem; }
+.game-tile-copy small { color: var(--color-text-muted); font-size: 0.76rem; line-height: 1.4; }
+.game-tile-arrow { position: absolute; top: var(--space-3); right: var(--space-3); color: var(--color-text-muted); font-size: 1.2rem; }
+.game-overlay { position: fixed; inset: 0; z-index: 20; overflow-y: auto; padding: var(--space-4); background: rgba(9, 9, 11, 0.98); }
+.game-overlay-topline, .game-overlay-content { width: min(100%, 48rem); margin-inline: auto; }
+.game-overlay-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-4); }
+.game-overlay-content { padding-bottom: var(--space-6); }
+.game-overlay-content .game-card { box-shadow: var(--shadow-strong); }
+.wordle-attempts { font-size: 0.82rem; }
+.wordle-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .wordle-card { border-top: 0.3rem solid var(--color-primary); }
 .wordle-status { border-radius: 2rem; padding: 0.25rem 0.55rem; background: var(--color-surface-muted); color: var(--color-text-muted); font-size: 0.75rem; font-weight: 800; }
 .wordle-status.won { background: var(--color-primary-soft); color: #f0aeb5; }
