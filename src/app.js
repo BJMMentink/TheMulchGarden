@@ -18,6 +18,8 @@ let dailyWordle = { date: getWordleDate(), answer: getDailyAnswer() };
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
 let activeGame = null;
+let authDarkMode = false;
+let authKeyHandler;
 const root = document.querySelector('#app');
 
 function escapeHtml(value) {
@@ -220,7 +222,10 @@ function bindEvents() {
 }
 
 function renderAuth(message = '') {
-  root.innerHTML = `<main class="auth-shell"><section class="auth-card"><h1>The Mulch Garden</h1>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Sign in</button></form></section></main>`;
+  if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
+  root.innerHTML = `<main class="auth-shell${authDarkMode ? ' is-dark' : ''}"><section class="auth-card"><h1>The Mulch Garden</h1><h2>Login</h2>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form></section></main>`;
+  authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
+  document.addEventListener('keydown', authKeyHandler);
   document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); render(); } catch (error) { renderAuth(error.message); } });
 }
 
