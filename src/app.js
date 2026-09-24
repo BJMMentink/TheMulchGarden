@@ -535,6 +535,11 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   updateMinimalNavigation();
   const activateLandingView = () => {
     if (root.dataset.minimalView !== view) return;
+    if (view === 'landing' && !firstLandingRender) {
+      heroIntroConsumed = false;
+      heroIntroInitialFull = false;
+      document.documentElement.classList.remove('is-away-from-top');
+    }
     heroIntroReady = view === 'landing';
     if (heroIntroReady) updateHeroIntroScale();
     updateMinimalViewportHeight();
