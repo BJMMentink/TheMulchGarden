@@ -256,7 +256,11 @@ function bindEvents() {
 
 function minimalLanding() {
   const openTasks = Array.isArray(state?.todos) ? state.todos.filter((todo) => !todo.done).length : 0;
-  return `<main class="editorial-landing"><section class="editorial-hero" data-reveal><div class="editorial-hero-copy"><span class="editorial-kicker">Personal signal / 001</span><h1>Make room for <span class="editorial-word" data-reveal-word>what matters.</span></h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. A small, private place for attention, ideas, and the next useful thing.</p><button class="editorial-link" data-scroll-target="editorial-field">Enter the garden <span class="editorial-arrow">↗</span></button></div><div class="editorial-loop" data-hover-visual role="img" aria-label="Animated maroon and black garden loop"><div class="loop-orbit loop-orbit-one"></div><div class="loop-orbit loop-orbit-two"></div><div class="loop-core">MG</div><span class="loop-caption">loop / 001</span></div></section><section class="editorial-field" id="editorial-field"><div class="editorial-field-intro" data-reveal><span class="editorial-kicker">A little context</span><h2>There is more than one way to begin.</h2></div><div class="editorial-card-grid"><article class="editorial-card" data-reveal><span class="editorial-index">01</span><h3>Small signals</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vitae sapien at orci pretium.</p><button class="editorial-card-link">Open the quiet <span class="editorial-arrow">↗</span></button></article><article class="editorial-card editorial-card-featured" data-reveal><span class="editorial-index">02</span><h3>${openTasks} tasks open</h3><p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. The smallest step still counts.</p><button class="editorial-card-link" data-minimal-account>Visit your account <span class="editorial-arrow">↗</span></button></article><article class="editorial-card" data-reveal><span class="editorial-index">03</span><h3>Keep looking</h3><p>Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Follow the thread.</p><button class="editorial-card-link">Read the signal <span class="editorial-arrow">↗</span></button></article></div></section><section class="editorial-statement" data-reveal><p>“Lorem ipsum dolor sit amet, consectetur adipiscing elit. The garden is still becoming.”</p><span class="editorial-kicker">The Mulch Garden / 2026</span></section></main>`;
+  return `<div class="editorial-landing"><section class="editorial-hero" data-reveal><div class="editorial-hero-copy"><span class="editorial-kicker">Personal signal / 001</span><h1>Make room for <span class="editorial-word" data-reveal-word>what matters.</span></h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. A small, private place for attention, ideas, and the next useful thing.</p><button class="editorial-link" data-scroll-target="editorial-field">Enter the garden <span class="editorial-arrow">↗</span></button></div><div class="editorial-loop" data-hover-visual role="img" aria-label="Animated maroon and black garden loop"><div class="loop-orbit loop-orbit-one"></div><div class="loop-orbit loop-orbit-two"></div><div class="loop-core">MG</div><span class="loop-caption">loop / 001</span></div></section><section class="editorial-field" id="editorial-field"><div class="editorial-field-intro" data-reveal><span class="editorial-kicker">A little context</span><h2>There is more than one way to begin.</h2></div><div class="editorial-card-grid"><article class="editorial-card" data-reveal><span class="editorial-index">01</span><h3>Small signals</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vitae sapien at orci pretium.</p><button class="editorial-card-link">Open the quiet <span class="editorial-arrow">↗</span></button></article><article class="editorial-card editorial-card-featured" data-reveal><span class="editorial-index">02</span><h3>${openTasks} tasks open</h3><p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. The smallest step still counts.</p><button class="editorial-card-link" data-minimal-account>Visit your account <span class="editorial-arrow">↗</span></button></article><article class="editorial-card" data-reveal><span class="editorial-index">03</span><h3>Keep looking</h3><p>Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Follow the thread.</p><button class="editorial-card-link">Read the signal <span class="editorial-arrow">↗</span></button></article></div></section><section class="editorial-statement" data-reveal><p>“Lorem ipsum dolor sit amet, consectetur adipiscing elit. The garden is still becoming.”</p><span class="editorial-kicker">The Mulch Garden / 2026</span></section></div>`;
+}
+
+function signalPage() {
+  return `<section class="signal-page"><div class="settings-heading"><span class="editorial-kicker">Signal / 003</span><h2>A quiet place for the next thing.</h2><p>This preloaded placeholder shows how another section can join the garden without a page reload.</p></div><div class="signal-grid"><article class="signal-card"><span class="editorial-index">01</span><h3>Already here</h3><p>The shell, navigation, and page surfaces stay mounted while the view slides.</p></article><article class="signal-card"><span class="editorial-index">02</span><h3>Ready when needed</h3><p>Future data-heavy sections can fetch their content after the transition begins.</p></article></div></section>`;
 }
 
 function securitySettings(message = '') {
@@ -301,25 +305,54 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
+const MINIMAL_VIEWS = ['landing', 'account', 'signal'];
+let minimalGlobalEventsBound = false;
+
+function minimalViewIndex(view) { return Math.max(0, MINIMAL_VIEWS.indexOf(view)); }
+
+function updateMinimalNavigation() {
+  const view = root.dataset.minimalView || 'landing';
+  const nav = root.querySelector('.editorial-nav nav');
+  const activeSelector = view === 'landing' ? '[data-minimal-home]' : `[data-minimal-${view}]`;
+  const activeLink = nav?.querySelector(activeSelector);
+  if (nav && activeLink) {
+    nav.style.setProperty('--nav-indicator-left', `${activeLink.offsetLeft}px`);
+    nav.style.setProperty('--nav-indicator-width', `${activeLink.offsetWidth}px`);
+  }
+  root.querySelectorAll('[data-minimal-view-link]').forEach((link) => link.classList.toggle('is-active', link.dataset.minimalViewLink === view));
+}
+
+function updateMinimalViewportHeight() {
+  const viewport = root.querySelector('.minimal-viewport');
+  const view = root.dataset.minimalView || 'landing';
+  const activeSlide = root.querySelector(`[data-minimal-slide="${view}"]`);
+  if (viewport && activeSlide) viewport.style.height = `${activeSlide.scrollHeight}px`;
+}
+
 function bindMinimalEvents(view, page = 'profile') {
-  document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
-  document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
-    if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
-      document.querySelector('[data-menu-toggle]')?.click();
-      return;
-    }
-    renderMinimal('landing');
-  }));
-  document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
-  const menuToggle = document.querySelector('[data-menu-toggle]');
-  const mobilePanel = document.querySelector('[data-mobile-panel]');
-  menuToggle?.addEventListener('click', () => {
-    const open = !mobilePanel?.hasAttribute('hidden');
-    if (!mobilePanel) return;
-    mobilePanel.toggleAttribute('hidden', open);
-    menuToggle.setAttribute('aria-expanded', String(!open));
-    menuToggle.classList.toggle('is-open', !open);
-  });
+  if (!minimalGlobalEventsBound) {
+    document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
+    document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
+    document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
+      if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
+        document.querySelector('[data-menu-toggle]')?.click();
+        return;
+      }
+      renderMinimal('landing');
+    }));
+    document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); }));
+    const menuToggle = document.querySelector('[data-menu-toggle]');
+    const mobilePanel = document.querySelector('[data-mobile-panel]');
+    menuToggle?.addEventListener('click', () => {
+      const open = !mobilePanel?.hasAttribute('hidden');
+      if (!mobilePanel) return;
+      mobilePanel.toggleAttribute('hidden', open);
+      menuToggle.setAttribute('aria-expanded', String(!open));
+      menuToggle.classList.toggle('is-open', !open);
+    });
+    document.querySelectorAll('[data-scroll-target]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({ behavior: 'smooth' })));
+    minimalGlobalEventsBound = true;
+  }
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
   document.querySelectorAll('[data-avatar-trigger]').forEach((button) => button.addEventListener('click', () => avatarInput?.click()));
@@ -331,37 +364,33 @@ function bindMinimalEvents(view, page = 'profile') {
   document.querySelector('[data-avatar-remove]')?.addEventListener('click', () => { ensureProfile().avatarDataUrl = ''; if (avatarInput) avatarInput.value = ''; const avatar = document.querySelector('.profile-avatar'); if (avatar) avatar.innerHTML = `<span>${escapeHtml(profileInitials())}</span>`; });
   document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('account', 'Saved.', 'security'); } catch (error) { renderMinimal('account', error.message, 'security'); } });
   document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
-  document.querySelectorAll('[data-scroll-target]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({ behavior: 'smooth' })));
   const revealObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('is-visible'); }), { threshold: 0.16 }) : null;
   document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver ? revealObserver.observe(element) : element.classList.add('is-visible'));
 }
 
 function renderMinimal(view = 'landing', message = '', page = 'profile') {
-  const account = view === 'account';
-  const previousView = root.dataset.minimalView || 'landing';
-  const transitionDirection = previousView === view ? 'steady' : account ? 'forward' : 'backward';
-  const previousHeight = root.getBoundingClientRect().height;
-  const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link ${account ? '' : 'is-active'}" data-minimal-home>Home</button><button class="editorial-nav-link ${account ? 'is-active' : ''}" data-minimal-account>Account</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
-  root.classList.remove('page-switch', 'page-switch-forward', 'page-switch-backward');
+  const shell = root.querySelector('.minimal-shell');
+  const accountSlide = root.querySelector('[data-minimal-slide="account"]');
   root.dataset.minimalView = view;
-  if (previousHeight > 0) root.style.height = `${previousHeight}px`;
-  root.innerHTML = `${header}${account ? `<main class="minimal-page">${accountPage(page, message)}</main>` : minimalLanding()}`;
-  window.scrollTo({ top: 0, behavior: 'auto' });
-  const nav = root.querySelector('.editorial-nav nav');
-  const activeLink = nav?.querySelector('.is-active');
-  if (nav && activeLink) {
-    nav.style.setProperty('--nav-indicator-left', `${activeLink.offsetLeft}px`);
-    nav.style.setProperty('--nav-indicator-width', `${activeLink.offsetWidth}px`);
+  if (!shell) {
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
+    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section></div></div>`;
+    root.dataset.minimalAccountPage = page;
+    bindMinimalEvents(view, page);
+  } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
+    accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
+    root.dataset.minimalAccountPage = page;
+    bindMinimalEvents(view, page);
   }
-  requestAnimationFrame(() => {
-    root.classList.add('page-switch', `page-switch-${transitionDirection === 'backward' ? 'backward' : 'forward'}`);
-    root.style.height = `${root.scrollHeight}px`;
-    window.setTimeout(() => { root.style.height = ''; root.classList.remove('page-switch', 'page-switch-forward', 'page-switch-backward'); }, 440);
-  });
-  bindMinimalEvents(view, page);
+  const track = root.querySelector('.minimal-track');
+  if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  updateMinimalNavigation();
+  requestAnimationFrame(updateMinimalViewportHeight);
 }
 
 function renderAuth(message = '') {
+  minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
   root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form></section></main>`;
   authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
