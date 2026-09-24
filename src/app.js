@@ -51,7 +51,10 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
+    const dampedScroll = Math.min(window.scrollY, APP_CONFIG.performance.heroScrollDampingDistancePx);
+    const heroScrollOffset = dampedScroll * APP_CONFIG.performance.heroScrollDampingRatio;
     document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8);
+    document.documentElement.style.setProperty('--hero-scroll-offset', `${heroScrollOffset}px`);
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
     scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
   };

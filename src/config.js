@@ -21,6 +21,8 @@ export const APP_CONFIG = Object.freeze({
     lowPowerMemoryGb: 4,
     lowPowerNetworkTypes: Object.freeze(['slow-2g', '2g']),
     scrollIndicatorFadeMs: 500,
+    heroScrollDampingDistancePx: 160,
+    heroScrollDampingRatio: 0.5,
   }),
 });
 
