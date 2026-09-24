@@ -130,18 +130,37 @@ function settleHeroIntro(resetScroll = false) {
   return true;
 }
 
+function restoreHeroIntro() {
+  if (!heroIntroConsumed || window.scrollY > 8 || !document.querySelector('.editorial-hero')) return false;
+  heroIntroConsumed = false;
+  heroIntroResetting = true;
+  window.clearTimeout(heroIntroResetTimer);
+  heroIntroResetTimer = window.setTimeout(() => { heroIntroResetting = false; }, APP_CONFIG.performance.heroIntroResetMs);
+  document.documentElement.classList.remove('is-away-from-top');
+  document.documentElement.classList.add('is-scrolling');
+  window.clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), APP_CONFIG.performance.scrollIndicatorFadeMs);
+  return true;
+}
+
 function bindHeroIntroGesture() {
   if (heroIntroGestureBound) return;
   heroIntroGestureBound = true;
   window.addEventListener('wheel', (event) => {
-    if (event.deltaY <= 0 || event.ctrlKey || !event.cancelable) return;
+    if (event.ctrlKey || !event.cancelable) return;
+    if (event.deltaY < 0) {
+      if (restoreHeroIntro()) event.preventDefault();
+      return;
+    }
+    if (event.deltaY === 0) return;
     if (settleHeroIntro()) event.preventDefault();
   }, { passive: false });
   window.addEventListener('touchstart', (event) => { heroTouchStartY = event.touches[0]?.clientY; }, { passive: true });
   window.addEventListener('touchmove', (event) => {
     const currentY = event.touches[0]?.clientY;
-    if (heroTouchStartY === undefined || currentY === undefined || heroTouchStartY - currentY < 8 || !event.cancelable) return;
-    if (settleHeroIntro()) {
+    const deltaY = heroTouchStartY === undefined || currentY === undefined ? 0 : heroTouchStartY - currentY;
+    if (!deltaY || !event.cancelable) return;
+    if ((deltaY < -8 && restoreHeroIntro()) || (deltaY >= 8 && settleHeroIntro())) {
       event.preventDefault();
       heroTouchStartY = undefined;
     }
@@ -149,8 +168,12 @@ function bindHeroIntroGesture() {
   window.addEventListener('touchend', () => { heroTouchStartY = undefined; }, { passive: true });
   window.addEventListener('keydown', (event) => {
     const activeElement = document.activeElement;
-    if (event.key !== 'ArrowDown' && event.key !== 'PageDown' && event.key !== ' ') return;
     if (activeElement?.matches('input, textarea, select, button, a, [contenteditable="true"]')) return;
+    if (event.key === 'ArrowUp' || event.key === 'PageUp' || (event.key === ' ' && event.shiftKey)) {
+      if (restoreHeroIntro()) event.preventDefault();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'PageDown' && event.key !== ' ') return;
     if (settleHeroIntro()) event.preventDefault();
   });
 }
