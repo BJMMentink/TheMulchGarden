@@ -325,11 +325,12 @@ html.is-away-from-top .editorial-hero { transform: scale(1); border-radius: 0; }
 .editorial-link:hover .editorial-arrow, .editorial-card:hover .editorial-arrow { transform: translate(0.25rem, -0.25rem); }
 .editorial-loop { position: relative; display: grid; width: clamp(12rem, 18vw, 18rem); aspect-ratio: 1; place-items: center; justify-self: end; overflow: hidden; border: 1px solid rgba(240, 174, 181, 0.28); border-radius: 50%; background: radial-gradient(circle at 50% 50%, #7b2838 0%, #35131b 20%, #150a0e 52%, #09090b 72%); box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.5); transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), border-color 300ms ease; }
 .editorial-loop::before, .editorial-loop::after { position: absolute; inset: 12%; border: 1px solid rgba(231, 137, 146, 0.35); border-radius: 45% 55% 60% 40%; content: ''; transform: rotate(28deg); }
+.editorial-loop::before { animation: loop-sway 16s ease-in-out infinite alternate; transform-origin: center; will-change: transform; }
 .editorial-loop::after { inset: 24%; border-color: rgba(240, 174, 181, 0.22); transform: rotate(-28deg); }
 .editorial-loop:hover { border-color: #e06a76; transform: scale(1.04) rotate(-2deg); }
 .loop-orbit { position: absolute; width: 58%; height: 16%; border: 1px solid rgba(240, 174, 181, 0.45); border-radius: 50%; transform: rotate(-36deg); }
 .loop-orbit-two { width: 36%; height: 68%; transform: rotate(36deg); }
-.loop-core { display: grid; width: 5.5rem; height: 5.5rem; place-items: center; border: 1px solid #e06a76; border-radius: 50%; background: #1b0b10; color: #f6dfe2; font-size: 1.1rem; letter-spacing: 0.15em; box-shadow: 0 0 3rem rgba(193, 58, 73, 0.55); }
+.loop-core { display: grid; width: 5.5rem; height: 5.5rem; place-items: center; border: 1px solid #e06a76; border-radius: 50%; background: #1b0b10; color: #f6dfe2; font-size: 1.1rem; letter-spacing: 0.15em; box-shadow: 0 0 3rem rgba(193, 58, 73, 0.55); animation: loop-core-pulse 7s ease-in-out infinite; transform-origin: center; will-change: transform; }
 .loop-caption { position: absolute; right: 12%; bottom: 13%; color: #d88b93; font-size: 0.62rem; letter-spacing: 0.13em; text-transform: uppercase; }
 .editorial-field { display: grid; grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.35fr); gap: clamp(2rem, 8vw, 9rem); padding: clamp(5rem, 12vw, 12rem) clamp(1.25rem, 8vw, 9rem); background: #09090b; }
 .editorial-field-intro h2 { max-width: 10ch; margin-top: 1rem; color: #f6edef; font-size: clamp(2.3rem, 5vw, 5rem); font-weight: 450; letter-spacing: -0.07em; line-height: 0.95; }
@@ -347,11 +348,15 @@ html.is-away-from-top .editorial-hero { transform: scale(1); border-radius: 0; }
 [data-reveal]:not(.editorial-hero) { opacity: 0; transform: translateY(2rem); transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1); }
 [data-reveal]:not(.editorial-hero).is-visible { opacity: 1; transform: translateY(0); }
 @keyframes hero-glow-drift { from { transform: translate3d(-2%, -1%, 0) scale(1); } to { transform: translate3d(2%, 1%, 0) scale(1.06); } }
+@keyframes loop-sway { from { transform: rotate(24deg) scale(0.98); } to { transform: rotate(34deg) scale(1.02); } }
+@keyframes loop-core-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @keyframes page-switch-forward { from { opacity: 0.4; transform: translateX(2.5rem); } to { opacity: 1; transform: translateX(0); } }
 @keyframes page-switch-backward { from { opacity: 0.4; transform: translateX(-2.5rem); } to { opacity: 1; transform: translateX(0); } }
 .page-switch-forward { animation: page-switch-forward 420ms cubic-bezier(0.22, 1, 0.36, 1); }
 .page-switch-backward { animation: page-switch-backward 420ms cubic-bezier(0.22, 1, 0.36, 1); }
 html.is-low-power .editorial-hero::before { animation-duration: 24s; opacity: 0.7; }
+html.is-low-power .editorial-loop::before { animation-duration: 24s; }
+html.is-low-power .loop-core { animation-duration: 12s; }
 html.is-low-power .card { box-shadow: 0 0.55rem 1.2rem rgba(0, 0, 0, 0.3); }
 html.is-low-power .editorial-field, html.is-low-power .editorial-statement { content-visibility: auto; contain-intrinsic-size: auto 42rem; }
 html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav { backdrop-filter: none; }
