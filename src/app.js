@@ -289,7 +289,7 @@ function bindMinimalEvents(view, page = 'profile') {
 
 function renderMinimal(view = 'landing', message = '', page = 'profile') {
   const account = view === 'account';
-  const header = account ? `<header class="minimal-topbar"><div><button class="text-button" data-minimal-home>Today</button></div><div class="minimal-actions"><button class="text-button" data-minimal-logout>Log out</button></div></header>` : `<header class="editorial-nav"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav><button class="editorial-nav-link is-active" data-minimal-home>Today</button><button class="editorial-nav-link" data-minimal-account>Account <span class="editorial-arrow">↗</span></button></nav><button class="editorial-menu" data-minimal-account aria-label="Open account">Menu <span>+</span></button></header>`;
+  const header = `<header class="editorial-nav"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link ${account ? '' : 'is-active'}" data-minimal-home>Home</button><button class="editorial-nav-link ${account ? 'is-active' : ''}" data-minimal-account>Account</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-minimal-account aria-label="Open account">Menu <span>+</span></button></header>`;
   root.innerHTML = `${header}${account ? `<main class="minimal-page">${accountPage(page, message)}</main>` : minimalLanding()}`;
   bindMinimalEvents(view, page);
 }
