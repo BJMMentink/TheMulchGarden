@@ -243,7 +243,13 @@ html.is-away-from-top .editorial-nav { transform: translateY(0); border-color: r
 html.is-away-from-top .editorial-nav::before { opacity: 1; }
 .editorial-brand, .editorial-nav-link, .editorial-menu { border: 0; background: transparent; color: var(--color-text); }
 .editorial-brand { display: inline-flex; align-items: center; justify-self: start; gap: 0.55rem; min-width: 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.brand-mark { display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border: 1px solid #79303c; border-radius: 50%; color: #f0aeb5; font-size: 0.8rem; }
+.brand-mark { position: relative; display: grid; width: 1.65rem; height: 1.65rem; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid rgba(225, 105, 121, 0.52); border-radius: 0.58rem 0.58rem 0.58rem 0.2rem; background: linear-gradient(145deg, rgba(8, 8, 11, 0.94), rgba(76, 24, 36, 0.88)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0.35rem 0.9rem rgba(70, 14, 30, 0.26); transform: rotate(-8deg); transition: border-color 180ms ease, box-shadow 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.brand-glyph { width: 1.25rem; height: 1.25rem; overflow: visible; transform: rotate(8deg); }
+.brand-orbit { fill: none; stroke: rgba(240, 174, 181, 0.52); stroke-width: 0.85; stroke-dasharray: 18 7; }
+.brand-stem { fill: none; stroke: #f0aeb5; stroke-linecap: round; stroke-width: 1.05; }
+.brand-leaf { fill: none; stroke: #d25a68; stroke-linecap: round; stroke-width: 1.05; }
+.brand-core { fill: #f0aeb5; }
+.editorial-brand:hover .brand-mark { border-color: rgba(255, 211, 217, 0.82); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0.45rem 1.1rem rgba(112, 25, 44, 0.38); transform: rotate(0deg) translateY(-1px); }
 .editorial-nav nav { position: relative; display: flex; align-items: center; justify-self: center; gap: 0.2rem; padding: 0.22rem; border: 1px solid transparent; border-radius: 0.7rem; background: transparent; transition: background 240ms ease, border-color 240ms ease; }
 html.is-away-from-top .editorial-nav nav { border-color: rgba(255, 255, 255, 0.08); background: rgba(25, 26, 29, 0.65); }
 .editorial-nav nav::before { position: absolute; top: 0.22rem; bottom: 0.22rem; left: var(--nav-indicator-left, 0.22rem); width: var(--nav-indicator-width, 4rem); border-radius: 0.5rem; content: ''; background: #4b4d52; box-shadow: inset 0 1px rgba(255, 255, 255, 0.08); transition: left 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1); }

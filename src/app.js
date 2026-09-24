@@ -28,6 +28,7 @@ let heroIntroGestureBound = false;
 let heroIntroConsumed = false;
 let heroIntroResetting = false;
 let heroIntroResetTimer;
+let heroIntroReady = false;
 let heroTouchStartY;
 const root = document.querySelector('#app');
 
@@ -65,7 +66,7 @@ function bindScrollIndicator() {
         scheduleIndicatorUpdate();
       }, APP_CONFIG.performance.heroIntroResetMs);
     }
-    const heroHasSettled = heroIntroConsumed && document.querySelector('.editorial-hero');
+    const heroHasSettled = heroIntroReady && heroIntroConsumed && document.querySelector('.editorial-hero');
     document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8 || Boolean(heroHasSettled));
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
     scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
@@ -75,10 +76,15 @@ function bindScrollIndicator() {
     scrollIndicatorFrame = window.requestAnimationFrame(() => {
       scrollIndicatorFrame = undefined;
       updateIndicator();
-      if (!heroIntroResetting) updateHeroIntroScale();
+      if (heroIntroReady && !heroIntroResetting) updateHeroIntroScale();
     });
   };
   window.addEventListener('scroll', () => {
+    if (!heroIntroReady) {
+      if (window.scrollY > 8) window.scrollTo({ top: 0, behavior: 'auto' });
+      scheduleIndicatorUpdate();
+      return;
+    }
     if (!heroIntroConsumed && window.scrollY > 8 && document.querySelector('.editorial-hero')) {
       settleHeroIntro(true);
       return;
@@ -464,9 +470,14 @@ function bindMinimalEvents(view, page = 'profile') {
 function renderMinimal(view = 'landing', message = '', page = 'profile') {
   const shell = root.querySelector('.minimal-shell');
   const accountSlide = root.querySelector('[data-minimal-slide="account"]');
+  heroIntroReady = false;
+  heroIntroConsumed = false;
+  heroIntroResetting = false;
+  window.clearTimeout(heroIntroResetTimer);
+  document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   root.dataset.minimalView = view;
   if (!shell) {
-    const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
     root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section></div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
@@ -479,12 +490,17 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
   window.scrollTo({ top: 0, behavior: 'auto' });
   updateMinimalNavigation();
-  requestAnimationFrame(() => { updateHeroIntroScale(); updateMinimalViewportHeight(); });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    heroIntroReady = true;
+    updateHeroIntroScale();
+    updateMinimalViewportHeight();
+  }));
 }
 
 function renderAuth(message = '') {
   heroIntroConsumed = false;
   heroIntroResetting = false;
+  heroIntroReady = false;
   window.clearTimeout(heroIntroResetTimer);
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
