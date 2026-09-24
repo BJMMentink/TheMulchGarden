@@ -434,7 +434,6 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
-  .editorial-hero, html.is-away-from-top .editorial-hero { transform: none; border-radius: 0; }
 }
 
 @media (min-width: 62rem) {
@@ -456,4 +455,9 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
   .page-switch-forward, .page-switch-backward { animation-duration: 420ms !important; animation-iteration-count: 1 !important; }
   .minimal-viewport, .minimal-track { transition-duration: 0.01ms !important; }
   .editorial-nav nav::before { transition-duration: 380ms !important; }
+}
+
+/* The hero settle is an intentional part of the landing interaction. */
+@media (prefers-reduced-motion: reduce) {
+  .editorial-hero { transition-duration: 820ms !important; }
 }
