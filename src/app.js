@@ -20,6 +20,7 @@ let selectedSection = APP_CONFIG.defaultSection;
 let activeGame = null;
 let guestMode = false;
 let authDarkMode = true;
+let authLoginOpen = false;
 let authKeyHandler;
 let scrollIdleTimer;
 let scrollIndicatorBound = false;
@@ -629,7 +630,8 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
 }
 
-function renderAuth(message = '') {
+function renderAuth(message = '', loginOpen = false) {
+  authLoginOpen = loginOpen;
   heroIntroConsumed = false;
   heroIntroResetting = false;
   heroIntroReady = false;
@@ -638,11 +640,12 @@ function renderAuth(message = '') {
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
-  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form><div class="guest-entry"><span class="field-note">Want to look around first?</span><button class="button button-quiet" type="button" data-action="guest">Enter as guest</button></div><a class="portfolio-entry" href="./?view=portfolio">View Ben's portfolio <span aria-hidden="true">↗</span></a></section></main>`;
-  authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
+  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card"><div class="auth-options"><button class="auth-option auth-option-login" type="button" data-action="open-login" aria-expanded="${loginOpen}" aria-controls="auth-login-panel">Login <span class="auth-option-arrow" aria-hidden="true">↓</span></button><div class="auth-login-panel${loginOpen ? ' is-open' : ''}" id="auth-login-panel" aria-hidden="${!loginOpen}"><div>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username" ${loginOpen ? '' : 'disabled'}></label><label>Password<input type="password" name="password" required autocomplete="current-password" ${loginOpen ? '' : 'disabled'}></label><button class="button" type="submit" ${loginOpen ? '' : 'disabled'}>Login</button></form></div></div><button class="auth-option auth-option-guest" type="button" data-action="guest">Enter as guest <span aria-hidden="true">↗</span></button></div></section></main>`;
+  authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message, loginOpen); } };
+  document.querySelector('[data-action="open-login"]').addEventListener('click', () => { renderAuth('', true); document.querySelector('#auth-form input[name="username"]')?.focus(); });
   document.querySelector('[data-action="guest"]').addEventListener('click', () => { guestMode = true; currentUser = null; state = null; renderMinimal('landing'); });
   document.addEventListener('keydown', authKeyHandler);
-  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message); } });
+  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); guestMode = false; state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message, true); } });
 }
 
 function renderAccountSettings(message = '') {
