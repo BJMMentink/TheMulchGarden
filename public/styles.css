@@ -396,3 +396,14 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }
+
+/* The owner explicitly requested motion for the hero and page switch. Keep the rest of the UI reduced-motion safe. */
+@media (prefers-reduced-motion: reduce) {
+  .editorial-hero { animation-duration: 15s !important; animation-iteration-count: infinite !important; }
+  .editorial-hero::before { animation: hero-ripple 7s ease-in-out infinite !important; }
+  .editorial-hero::after { animation: hero-ripple-reverse 10s ease-in-out infinite !important; }
+  .editorial-loop::before, .editorial-loop::after { animation-duration: 9s !important; animation-iteration-count: infinite !important; }
+  .loop-orbit { animation-duration: 5s !important; animation-iteration-count: infinite !important; }
+  .page-switch-forward, .page-switch-backward { animation-duration: 420ms !important; animation-iteration-count: 1 !important; }
+  .editorial-nav nav::before { transition-duration: 380ms !important; }
+}
