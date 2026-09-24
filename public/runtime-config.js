@@ -1,2 +1,4 @@
 // Production API. Keep this value non-secret; authentication uses session tokens.
-globalThis.MULCH_API_BASE = 'https://the-mulch-garden-api.bjmmentink.workers.dev';
+// Cloudflare Pages uses the same-origin /api proxy. The local server can still
+// be pointed at the Worker directly when needed.
+globalThis.MULCH_API_BASE = '';

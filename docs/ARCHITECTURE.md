@@ -20,7 +20,7 @@ The MVC separation is:
 
 ## Production deployment boundary
 
-The browser can point at either the local Node API or the production Cloudflare Worker by changing `public/runtime-config.js`. The browser API client is the stable boundary; both backends implement the same routes:
+The browser can point at the local Node API or the Cloudflare Pages same-origin proxy by changing `public/runtime-config.js`. In production, Pages forwards `/api/*` to the Cloudflare Worker, which uses D1. The browser API client is the stable boundary; both backends implement the same routes:
 
 - `GET /api/auth/me`
 - `POST /api/auth/login`
@@ -34,7 +34,7 @@ The browser can point at either the local Node API or the production Cloudflare 
 - `GET /api/state`
 - `PUT /api/state`
 
-GitHub Pages is intentionally static. Cloudflare Worker + D1 provides the free production API and database. The Worker uses Web Crypto PBKDF2 and bearer-capable sessions so a GitHub Pages origin can authenticate without depending solely on cross-site cookies. See `cloudflare/README.md` for the one-time dashboard setup.
+Cloudflare Pages provides the free production frontend and same-origin proxy. Cloudflare Worker + D1 provides the free production API and database. GitHub remains the source repository and deploy trigger; GitHub Pages is not used. The Worker uses Web Crypto PBKDF2 and bearer-capable sessions. See `cloudflare/README.md` for the one-time dashboard setup.
 
 ## Domain interfaces
 

@@ -48,6 +48,6 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/PRODUCT-SCOPE.md`]
 
 ## Free hosting
 
-The production shape is a static GitHub Pages frontend plus a Cloudflare Worker/D1 API. Both have free tiers suitable for this small personal app, and neither requires committing secrets. Deployment files are in `.github/workflows/pages.yml` and `cloudflare/`.
+GitHub remains the source-control repository and the `master` branch is connected directly to Cloudflare Pages. Cloudflare Pages serves the static frontend at <https://themulchgarden.pages.dev>, while a small Pages proxy forwards `/api/*` requests to the Cloudflare Worker and D1 database. This keeps browser requests same-origin and avoids unnecessary public services.
 
-GitHub Pages publishes the `master` branch through Actions. The Pages build copies only the browser assets; the local Node MVC server is still used for development. Cloudflare stores production users, sessions, and application state in D1. Never commit `data/`, password hashes intended as secrets, API keys, or other production secrets.
+The local Node MVC server is still used for development. Cloudflare stores production users, sessions, and application state in D1. Never commit `data/`, password hashes intended as secrets, API keys, or other production secrets. The old GitHub Pages workflow has been removed so GitHub Pages is no longer part of the production path.
