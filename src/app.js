@@ -269,7 +269,7 @@ function previewAvatar(file) {
 
 function bindMinimalEvents(view, page = 'profile') {
   document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
-  document.querySelector('[data-minimal-home]')?.addEventListener('click', () => renderMinimal('landing'));
+  document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => renderMinimal('landing')));
   document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
