@@ -20,7 +20,19 @@ let selectedSection = APP_CONFIG.defaultSection;
 let activeGame = null;
 let authDarkMode = true;
 let authKeyHandler;
+let scrollIdleTimer;
+let scrollIndicatorBound = false;
 const root = document.querySelector('#app');
+
+function bindScrollIndicator() {
+  if (scrollIndicatorBound) return;
+  scrollIndicatorBound = true;
+  window.addEventListener('scroll', () => {
+    document.documentElement.classList.add('is-scrolling');
+    window.clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), 750);
+  }, { passive: true });
+}
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' })[character]);
@@ -269,8 +281,23 @@ function previewAvatar(file) {
 
 function bindMinimalEvents(view, page = 'profile') {
   document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
-  document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => renderMinimal('landing')));
+  document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
+    if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
+      document.querySelector('[data-menu-toggle]')?.click();
+      return;
+    }
+    renderMinimal('landing');
+  }));
   document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
+  const menuToggle = document.querySelector('[data-menu-toggle]');
+  const mobilePanel = document.querySelector('[data-mobile-panel]');
+  menuToggle?.addEventListener('click', () => {
+    const open = !mobilePanel?.hasAttribute('hidden');
+    if (!mobilePanel) return;
+    mobilePanel.toggleAttribute('hidden', open);
+    menuToggle.setAttribute('aria-expanded', String(!open));
+    menuToggle.classList.toggle('is-open', !open);
+  });
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
   document.querySelectorAll('[data-avatar-trigger]').forEach((button) => button.addEventListener('click', () => avatarInput?.click()));
@@ -292,7 +319,7 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   const previousView = root.dataset.minimalView || 'landing';
   const transitionDirection = previousView === view ? 'steady' : account ? 'forward' : 'backward';
   const previousHeight = root.getBoundingClientRect().height;
-  const header = `<header class="editorial-nav"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link ${account ? '' : 'is-active'}" data-minimal-home>Home</button><button class="editorial-nav-link ${account ? 'is-active' : ''}" data-minimal-account>Account</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-minimal-account aria-label="Open account">Menu <span>+</span></button></header>`;
+  const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link ${account ? '' : 'is-active'}" data-minimal-home>Home</button><button class="editorial-nav-link ${account ? 'is-active' : ''}" data-minimal-account>Account</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
   root.classList.remove('page-switch', 'page-switch-forward', 'page-switch-backward');
   root.dataset.minimalView = view;
   if (previousHeight > 0) root.style.height = `${previousHeight}px`;
@@ -328,7 +355,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
+  try { bindScrollIndicator(); currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 
