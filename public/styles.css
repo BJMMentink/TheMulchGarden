@@ -214,6 +214,24 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .auth-shell.is-light .auth-card .button:hover { background: #d1d1ca; }
 .auth-card .form-error { border-color: #825b5e; background: #432b2e; color: #f0c6c7; font-size: 0.8rem; }
 .auth-shell.is-light .auth-card .form-error { border-color: #b48b8b; background: #f1dddd; color: #693737; }
+.minimal-topbar, .minimal-page { width: min(100% - 2rem, 58rem); margin-inline: auto; }
+.minimal-topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 1.25rem 0 1rem; border-bottom: 1px solid var(--color-border); }
+.minimal-actions { display: flex; align-items: center; gap: var(--space-3); }
+.minimal-page { display: grid; gap: var(--space-4); padding: var(--space-5) 0 4rem; }
+.minimal-hero { display: flex; min-height: min(28rem, 58vh); align-items: flex-end; justify-content: space-between; gap: var(--space-5); padding: clamp(1.5rem, 5vw, 3rem); border-color: #4a2028; background: linear-gradient(135deg, #09090b 0%, #160b0f 50%, #3b1720 100%); color: #fff7f8; }
+.minimal-hero h2 { max-width: 24rem; margin-top: var(--space-2); color: #fff7f8; font-size: clamp(2rem, 6vw, 4rem); }
+.minimal-hero p { max-width: 28rem; margin-top: var(--space-3); color: #e7c5c9; }
+.minimal-hero .eyebrow { color: #ef9da7; }
+.minimal-mark { align-self: center; color: #b93649; font-size: clamp(4rem, 14vw, 9rem); line-height: 1; opacity: 0.8; }
+.minimal-support { display: grid; grid-template-columns: minmax(0, 16rem); }
+.minimal-accent { padding: var(--space-4); border-color: #54232c; background: #32151b; }
+.minimal-accent strong { display: block; margin-top: var(--space-2); color: #f5d4d7; font-size: 1.35rem; }
+.minimal-accent p { margin-top: var(--space-1); color: #cdaeb2; font-size: 0.82rem; }
+.settings-page { display: grid; gap: var(--space-4); max-width: 34rem; }
+.settings-heading h2 { margin-top: var(--space-2); }
+.settings-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.settings-card .button { justify-self: start; }
+.form-success { border: 1px solid #3e704e; border-radius: var(--radius-sm); padding: var(--space-3); background: #16271b; color: #b9ddc0; font-size: 0.82rem; }
 .auth-tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--color-border); }
 .auth-tabs .is-active { border-bottom: 2px solid var(--color-primary); }
 #auth-form { display: grid; gap: var(--space-3); }

@@ -154,7 +154,6 @@ async function refreshChat() {
 
 function startChatPolling() {
   clearInterval(chatPollTimer);
-  chatPollTimer = setInterval(refreshChat, APP_CONFIG.chatPollIntervalMs);
 }
 
 function memoryCards() {
@@ -221,12 +220,34 @@ function bindEvents() {
   document.querySelectorAll('[data-remove-todo]').forEach((button) => button.addEventListener('click', () => { if (!window.confirm('Delete this todo?')) return; state.todos = state.todos.filter((todo) => todo.id !== button.dataset.removeTodo); saveState(state); render(); setSection('todos'); }));
 }
 
+function minimalLanding() {
+  const openTasks = Array.isArray(state?.todos) ? state.todos.filter((todo) => !todo.done).length : 0;
+  return `<section class="minimal-hero card"><div><span class="eyebrow">Today</span><h2>Tend what matters.</h2><p>A quiet place for the next useful thing.</p></div><span class="minimal-mark" aria-hidden="true">✦</span></section><section class="minimal-support"><article class="minimal-accent card"><span class="eyebrow">Open work</span><strong>${openTasks} task${openTasks === 1 ? '' : 's'} open</strong><p>Small steps are still movement.</p></article></section>`;
+}
+
+function minimalSettings(message = '') {
+  return `<section class="settings-page"><div class="settings-heading"><span class="eyebrow">Settings</span><h2>Your account.</h2></div><form class="settings-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save</button></form></section>`;
+}
+
+function bindMinimalEvents(view) {
+  document.querySelector('[data-minimal-settings]')?.addEventListener('click', () => renderMinimal('settings'));
+  document.querySelector('[data-minimal-home]')?.addEventListener('click', () => renderMinimal('landing'));
+  document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
+  document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('settings', 'Saved.'); } catch (error) { renderMinimal('settings', error.message); } });
+}
+
+function renderMinimal(view = 'landing', message = '') {
+  const settings = view === 'settings';
+  root.innerHTML = `<header class="minimal-topbar"><div>${settings ? '<button class="text-button" data-minimal-home>Today</button>' : '<span class="eyebrow">Today</span>'}</div><div class="minimal-actions">${settings ? '' : '<button class="text-button" data-minimal-settings>Settings</button>'}<button class="text-button" data-minimal-logout>Log out</button></div></header><main class="minimal-page">${settings ? minimalSettings(message) : minimalLanding()}</main>`;
+  bindMinimalEvents(view);
+}
+
 function renderAuth(message = '') {
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
   root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form></section></main>`;
   authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
   document.addEventListener('keydown', authKeyHandler);
-  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); render(); } catch (error) { renderAuth(error.message); } });
+  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message); } });
 }
 
 function renderAccountSettings(message = '') {
@@ -237,7 +258,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; render(); startChatPolling(); }
+  try { currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 
