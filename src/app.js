@@ -225,21 +225,48 @@ function minimalLanding() {
   return `<section class="minimal-hero card"><div><span class="eyebrow">Today</span><h2>Tend what matters.</h2><p>A quiet place for the next useful thing.</p></div><span class="minimal-mark" aria-hidden="true">✦</span></section><section class="minimal-support"><article class="minimal-accent card"><span class="eyebrow">Open work</span><strong>${openTasks} task${openTasks === 1 ? '' : 's'} open</strong><p>Small steps are still movement.</p></article></section>`;
 }
 
-function minimalSettings(message = '') {
-  return `<section class="settings-page"><div class="settings-heading"><span class="eyebrow">Settings</span><h2>Your account.</h2></div><form class="settings-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save</button></form></section>`;
+function securitySettings(message = '') {
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Update the details used to sign in to The Mulch Garden.</p></div><form class="settings-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save</button></form></section>`;
 }
 
-function bindMinimalEvents(view) {
-  document.querySelector('[data-minimal-settings]')?.addEventListener('click', () => renderMinimal('settings'));
+function profileInitials() {
+  const name = ensureProfile().displayName || currentUser.username;
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase();
+}
+
+function profilePage(message = '') {
+  const profile = ensureProfile();
+  const avatar = profile.avatarDataUrl ? `<img src="${escapeHtml(profile.avatarDataUrl)}" alt="">` : `<span>${escapeHtml(profileInitials())}</span>`;
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Your profile</span><h2>Tell us about yourself.</h2><p>This information is private to your account and can be changed whenever you like.</p></div><form class="profile-card card" id="profile-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<div class="profile-identity"><div class="profile-avatar">${avatar}</div><label class="upload-control">Change picture<input name="avatar" type="file" accept="image/png,image/jpeg,image/webp"></label><span class="field-note">A small square image works best.</span></div><div class="profile-fields"><label>Display name<input name="displayName" maxlength="80" value="${escapeHtml(profile.displayName)}" placeholder="How should people see you?"></label><label>About you<textarea name="bio" maxlength="500" placeholder="A few words about yourself">${escapeHtml(profile.bio)}</textarea></label><label>Location<input name="location" maxlength="80" value="${escapeHtml(profile.location)}" placeholder="Optional"></label><label>Pronouns<input name="pronouns" maxlength="40" value="${escapeHtml(profile.pronouns)}" placeholder="Optional"></label><label>Website<input name="website" maxlength="160" type="url" value="${escapeHtml(profile.website)}" placeholder="https://"></label></div><button class="button" type="submit">Save profile</button></form></section>`;
+}
+
+function accountPage(page = 'profile', message = '') {
+  const profile = ensureProfile();
+  return `<section class="account-layout"><aside class="account-sidebar"><div><span class="eyebrow">Account</span><strong>${escapeHtml(profile.displayName || currentUser.username)}</strong></div><nav aria-label="Account pages"><button class="account-link ${page === 'profile' ? 'is-active' : ''}" data-account-page="profile">Your Profile</button><button class="account-link ${page === 'security' ? 'is-active' : ''}" data-account-page="security">Sign-in & security</button></nav></aside><div class="account-main">${page === 'security' ? securitySettings(message) : profilePage(message)}</div></section>`;
+}
+
+function ensureProfile() {
+  state.profile = { displayName: '', bio: '', location: '', pronouns: '', website: '', avatarDataUrl: '', ...(state.profile || {}) };
+  return state.profile;
+}
+
+function resizeAvatar(file) {
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('That image could not be read.')); reader.onload = () => { const image = new Image(); image.onerror = () => reject(new Error('That image could not be loaded.')); image.onload = () => { const canvas = document.createElement('canvas'); const size = 192; canvas.width = size; canvas.height = size; const context = canvas.getContext('2d'); const scale = Math.max(size / image.width, size / image.height); const width = image.width * scale; const height = image.height * scale; context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height); const dataUrl = canvas.toDataURL('image/jpeg', 0.72); if (dataUrl.length > 90000) reject(new Error('Please choose a smaller image.')); else resolve(dataUrl); }; image.src = reader.result; }; reader.readAsDataURL(file); });
+}
+
+function bindMinimalEvents(view, page = 'profile') {
+  document.querySelector('[data-minimal-account]')?.addEventListener('click', () => renderMinimal('account', '', 'profile'));
   document.querySelector('[data-minimal-home]')?.addEventListener('click', () => renderMinimal('landing'));
   document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
-  document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('settings', 'Saved.'); } catch (error) { renderMinimal('settings', error.message); } });
+  document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
+  document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('account', 'Saved.', 'security'); } catch (error) { renderMinimal('account', error.message, 'security'); } });
+  document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { ...state.profile, displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), pronouns: String(values.get('pronouns') || '').trim(), website: String(values.get('website') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
 }
 
-function renderMinimal(view = 'landing', message = '') {
-  const settings = view === 'settings';
-  root.innerHTML = `<header class="minimal-topbar"><div>${settings ? '<button class="text-button" data-minimal-home>Today</button>' : '<span class="eyebrow">Today</span>'}</div><div class="minimal-actions">${settings ? '' : '<button class="text-button" data-minimal-settings>Settings</button>'}<button class="text-button" data-minimal-logout>Log out</button></div></header><main class="minimal-page">${settings ? minimalSettings(message) : minimalLanding()}</main>`;
-  bindMinimalEvents(view);
+function renderMinimal(view = 'landing', message = '', page = 'profile') {
+  const account = view === 'account';
+  root.innerHTML = `<header class="minimal-topbar"><div>${account ? '<button class="text-button" data-minimal-home>Today</button>' : '<span class="eyebrow">Today</span>'}</div><div class="minimal-actions">${account ? '' : '<button class="text-button" data-minimal-account>Account</button>'}<button class="text-button" data-minimal-logout>Log out</button></div></header><main class="minimal-page">${account ? accountPage(page, message) : minimalLanding()}</main>`;
+  bindMinimalEvents(view, page);
 }
 
 function renderAuth(message = '') {
