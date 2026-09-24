@@ -41,14 +41,16 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
+    document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8);
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
     scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
   };
   window.addEventListener('scroll', () => {
     updateIndicator();
+    document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8);
     document.documentElement.classList.add('is-scrolling');
     window.clearTimeout(scrollIdleTimer);
-    scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), 750);
+    scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), 500);
   }, { passive: true });
   window.addEventListener('resize', updateIndicator, { passive: true });
   updateIndicator();
