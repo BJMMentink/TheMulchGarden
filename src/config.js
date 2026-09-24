@@ -16,6 +16,12 @@ export const APP_CONFIG = Object.freeze({
   maxTodoTags: 8,
   maxTodoTagLength: 32,
   maxAccounts: 2,
+  performance: Object.freeze({
+    lowPowerCoreLimit: 4,
+    lowPowerMemoryGb: 4,
+    lowPowerNetworkTypes: Object.freeze(['slow-2g', '2g']),
+    scrollIndicatorFadeMs: 500,
+  }),
 });
 
 export const USER_ROLES = Object.freeze({
