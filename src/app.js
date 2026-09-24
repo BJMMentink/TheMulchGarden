@@ -289,8 +289,26 @@ function bindMinimalEvents(view, page = 'profile') {
 
 function renderMinimal(view = 'landing', message = '', page = 'profile') {
   const account = view === 'account';
+  const previousView = root.dataset.minimalView || 'landing';
+  const transitionDirection = previousView === view ? 'steady' : account ? 'forward' : 'backward';
+  const previousHeight = root.getBoundingClientRect().height;
   const header = `<header class="editorial-nav"><button class="editorial-brand" data-minimal-home><span class="brand-mark">✦</span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link ${account ? '' : 'is-active'}" data-minimal-home>Home</button><button class="editorial-nav-link ${account ? 'is-active' : ''}" data-minimal-account>Account</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-minimal-account aria-label="Open account">Menu <span>+</span></button></header>`;
+  root.classList.remove('page-switch', 'page-switch-forward', 'page-switch-backward');
+  root.dataset.minimalView = view;
+  if (previousHeight > 0) root.style.height = `${previousHeight}px`;
   root.innerHTML = `${header}${account ? `<main class="minimal-page">${accountPage(page, message)}</main>` : minimalLanding()}`;
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  const nav = root.querySelector('.editorial-nav nav');
+  const activeLink = nav?.querySelector('.is-active');
+  if (nav && activeLink) {
+    nav.style.setProperty('--nav-indicator-left', `${activeLink.offsetLeft}px`);
+    nav.style.setProperty('--nav-indicator-width', `${activeLink.offsetWidth}px`);
+  }
+  requestAnimationFrame(() => {
+    root.classList.add('page-switch', `page-switch-${transitionDirection === 'backward' ? 'backward' : 'forward'}`);
+    root.style.height = `${root.scrollHeight}px`;
+    window.setTimeout(() => { root.style.height = ''; root.classList.remove('page-switch', 'page-switch-forward', 'page-switch-backward'); }, 440);
+  });
   bindMinimalEvents(view, page);
 }
 
