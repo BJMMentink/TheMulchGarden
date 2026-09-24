@@ -528,14 +528,20 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
   window.scrollTo({ top: 0, behavior: 'auto' });
   updateMinimalNavigation();
-  const finishViewTransition = () => {
+  const activateLandingView = () => {
     if (root.dataset.minimalView !== view) return;
     heroIntroReady = view === 'landing';
     if (heroIntroReady) updateHeroIntroScale();
     updateMinimalViewportHeight();
   };
+  const finishViewTransition = () => {
+    if (root.dataset.minimalView !== view) return;
+    window.clearTimeout(heroIntroResetTimer);
+    if (view === 'landing' && waitsForSlide) heroIntroResetTimer = window.setTimeout(activateLandingView, APP_CONFIG.performance.heroIntroResetMs);
+    else activateLandingView();
+  };
   if (waitsForSlide && track) track.addEventListener('transitionend', finishViewTransition, { once: true });
-  else requestAnimationFrame(() => requestAnimationFrame(finishViewTransition));
+  else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
 }
 
 function renderAuth(message = '') {
