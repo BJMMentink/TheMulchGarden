@@ -18,6 +18,7 @@ let dailyWordle = { date: getWordleDate(), answer: getDailyAnswer() };
 let todoFilters = { query: '', status: 'open', assignedTo: 'all' };
 let selectedSection = APP_CONFIG.defaultSection;
 let activeGame = null;
+let guestMode = false;
 let authDarkMode = true;
 let authKeyHandler;
 let scrollIdleTimer;
@@ -393,11 +394,18 @@ function bindEvents() {
 
 function minimalLanding() {
   const openTasks = Array.isArray(state?.todos) ? state.todos.filter((todo) => !todo.done).length : 0;
-  return `<div class="editorial-landing"><section class="editorial-hero" data-reveal><div class="editorial-hero-copy"><span class="editorial-kicker">Personal signal / 001</span><h1>Make room for <span class="editorial-word" data-reveal-word>what matters.</span></h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. A small, private place for attention, ideas, and the next useful thing.</p><button class="editorial-link" data-scroll-target="editorial-field">Enter the garden <span class="editorial-arrow">↗</span></button></div><div class="editorial-loop" data-hover-visual role="img" aria-label="Animated maroon and black garden loop"><div class="loop-orbit loop-orbit-one"></div><div class="loop-orbit loop-orbit-two"></div><div class="loop-core">MG</div><span class="loop-caption">loop / 001</span></div></section><section class="editorial-field" id="editorial-field"><div class="editorial-field-intro" data-reveal><span class="editorial-kicker">A little context</span><h2>There is more than one way to begin.</h2></div><div class="editorial-card-grid"><article class="editorial-card" data-reveal><span class="editorial-index">01</span><h3>Small signals</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vitae sapien at orci pretium.</p><button class="editorial-card-link">Open the quiet <span class="editorial-arrow">↗</span></button></article><article class="editorial-card editorial-card-featured" data-reveal><span class="editorial-index">02</span><h3>${openTasks} tasks open</h3><p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. The smallest step still counts.</p><button class="editorial-card-link" data-minimal-account>Visit your account <span class="editorial-arrow">↗</span></button></article><article class="editorial-card" data-reveal><span class="editorial-index">03</span><h3>Keep looking</h3><p>Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Follow the thread.</p><button class="editorial-card-link">Read the signal <span class="editorial-arrow">↗</span></button></article></div></section><section class="editorial-statement" data-reveal><p>“Lorem ipsum dolor sit amet, consectetur adipiscing elit. The garden is still becoming.”</p><span class="editorial-kicker">The Mulch Garden / 2026</span></section></div>`;
+  const featuredCard = guestMode
+    ? '<article class="editorial-card editorial-card-featured" data-reveal><span class="editorial-index">02</span><h3>A quiet beginning</h3><p>Sign in when you are ready to make this garden your own. For now, take a look around.</p><span class="editorial-card-link">Guest view</span></article>'
+    : `<article class="editorial-card editorial-card-featured" data-reveal><span class="editorial-index">02</span><h3>${openTasks} tasks open</h3><p>Praesent commodo cursus magna, vel scelerisque nisl consectetur et. The smallest step still counts.</p><button class="editorial-card-link" data-minimal-account>Visit your account <span class="editorial-arrow">↗</span></button></article>`;
+  return `<div class="editorial-landing"><section class="editorial-hero" data-reveal><div class="editorial-hero-copy"><span class="editorial-kicker">Personal signal / 001</span><h1>Make room for <span class="editorial-word" data-reveal-word>what matters.</span></h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. A small, private place for attention, ideas, and the next useful thing.</p><button class="editorial-link" data-scroll-target="editorial-field">Enter the garden <span class="editorial-arrow">↗</span></button></div><div class="editorial-loop" data-hover-visual role="img" aria-label="Animated maroon and black garden loop"><div class="loop-orbit loop-orbit-one"></div><div class="loop-orbit loop-orbit-two"></div><div class="loop-core">MG</div><span class="loop-caption">loop / 001</span></div></section><section class="editorial-field" id="editorial-field"><div class="editorial-field-intro" data-reveal><span class="editorial-kicker">A little context</span><h2>There is more than one way to begin.</h2></div><div class="editorial-card-grid"><article class="editorial-card" data-reveal><span class="editorial-index">01</span><h3>Small signals</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vitae sapien at orci pretium.</p><button class="editorial-card-link">Open the quiet <span class="editorial-arrow">↗</span></button></article>${featuredCard}<article class="editorial-card" data-reveal><span class="editorial-index">03</span><h3>Keep looking</h3><p>Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Follow the thread.</p><button class="editorial-card-link">Read the signal <span class="editorial-arrow">↗</span></button></article></div></section><section class="editorial-statement" data-reveal><p>“Lorem ipsum dolor sit amet, consectetur adipiscing elit. The garden is still becoming.”</p><span class="editorial-kicker">The Mulch Garden / 2026</span></section></div>`;
 }
 
 function signalPage() {
   return `<section class="signal-page"><div class="settings-heading"><span class="editorial-kicker">Signal / 003</span><h2>A quiet place for the next thing.</h2><p>This preloaded placeholder shows how another section can join the garden without a page reload.</p></div><div class="signal-grid"><article class="signal-card"><span class="editorial-index">01</span><h3>Already here</h3><p>The shell, navigation, and page surfaces stay mounted while the view slides.</p></article><article class="signal-card"><span class="editorial-index">02</span><h3>Ready when needed</h3><p>Future data-heavy sections can fetch their content after the transition begins.</p></article></div></section>`;
+}
+
+function portfolioPage() {
+  return `<section class="portfolio-page"><div class="portfolio-hero"><div class="portfolio-hero-copy"><span class="editorial-kicker">Builder portfolio / 2026</span><h2>I make useful things feel <em>clear.</em></h2><p>A working collection of software, systems, and creative projects—built with curiosity, care, and an eye for the next useful step.</p><div class="portfolio-actions"><button class="portfolio-button" data-scroll-target="portfolio-work">Explore the work <span class="editorial-arrow">↓</span></button><button class="portfolio-text-link" data-scroll-target="portfolio-about">A little more about me <span class="editorial-arrow">↗</span></button></div></div><div class="portfolio-orbit" aria-hidden="true"><div class="portfolio-orbit-ring portfolio-orbit-ring-one"></div><div class="portfolio-orbit-ring portfolio-orbit-ring-two"></div><div class="portfolio-orbit-core">MG</div><span class="portfolio-orbit-label portfolio-orbit-label-top">systems</span><span class="portfolio-orbit-label portfolio-orbit-label-right">craft</span><span class="portfolio-orbit-label portfolio-orbit-label-bottom">curiosity</span></div></div><section class="portfolio-work" id="portfolio-work"><div class="portfolio-section-heading"><div><span class="editorial-kicker">Selected work / 001</span><h3>Projects with somewhere to go.</h3></div><p>A mix of personal software, professional work, and experiments still becoming.</p></div><div class="portfolio-project-grid"><article class="portfolio-project portfolio-project-featured"><div class="portfolio-project-topline"><span class="portfolio-project-number">01</span><span class="portfolio-status portfolio-status-active">Active now</span></div><div class="portfolio-project-body"><span class="portfolio-project-type">Personal platform</span><h3>The Mulch Garden</h3><p>A private productivity and information hub for projects, interests, todos, games, and future integrations.</p><div class="portfolio-tags"><span>Node.js</span><span>MVC</span><span>Vanilla JS</span></div></div><div class="portfolio-project-footer"><span>Work rhythm</span><strong>Several sessions / week</strong><button data-minimal-home>Open project <span class="editorial-arrow">↗</span></button></div></article><article class="portfolio-project"><div class="portfolio-project-topline"><span class="portfolio-project-number">02</span><span class="portfolio-status portfolio-status-building">Building</span></div><div class="portfolio-project-body"><span class="portfolio-project-type">Personal project</span><h3>SaberDueler</h3><p>An ongoing project exploring game ideas, interaction, and the satisfaction of making a small world respond well.</p><div class="portfolio-tags"><span>Game design</span><span>Experimentation</span></div></div><div class="portfolio-project-footer"><span>Work rhythm</span><strong>Focused build sprints</strong><span class="portfolio-footer-arrow">↗</span></div></article><article class="portfolio-project"><div class="portfolio-project-topline"><span class="portfolio-project-number">03</span><span class="portfolio-status portfolio-status-ongoing">Ongoing</span></div><div class="portfolio-project-body"><span class="portfolio-project-type">Professional / creative</span><h3>GMCHE art class</h3><p>Professional work connecting organization, creative practice, and the details that help people learn.</p><div class="portfolio-tags"><span>Creative systems</span><span>Education</span></div></div><div class="portfolio-project-footer"><span>Work rhythm</span><strong>Project-based / steady</strong><span class="portfolio-footer-arrow">↗</span></div></article></div></section><section class="portfolio-rhythm"><div class="portfolio-section-heading"><div><span class="editorial-kicker">Working rhythm / 002</span><h3>Progress is a practice.</h3></div><p>The work changes shape, but the habit stays visible: make a small improvement, then come back for the next one.</p></div><div class="portfolio-rhythm-panel"><div class="portfolio-rhythm-intro"><span class="portfolio-rhythm-mark">↗</span><p>I work best when a project has a clear next action, room for iteration, and enough structure to keep momentum without smothering curiosity.</p></div><div class="portfolio-rhythm-list"><div><span>Active build</span><i><b style="width: 88%"></b></i><strong>Now</strong></div><div><span>Focused sprint</span><i><b style="width: 64%"></b></i><strong>When it matters</strong></div><div><span>Reflection &amp; polish</span><i><b style="width: 42%"></b></i><strong>Always nearby</strong></div></div></div></section><section class="portfolio-about" id="portfolio-about"><div class="portfolio-about-card"><span class="editorial-kicker">About the builder / 003</span><h3>Thoughtful systems. Human-sized steps.</h3><p>I’m interested in the space where software, creativity, and everyday usefulness meet. I like building foundations that stay understandable: clear interfaces, small modules, portable data, and room to grow.</p><p>This portfolio is a living page. More detailed case studies, links, and contact information can be added as each project reaches a shareable milestone.</p><button class="portfolio-button portfolio-button-light" data-scroll-target="portfolio-work">Explore the work <span class="editorial-arrow">↗</span></button></div><div class="portfolio-about-aside"><span>04</span><p>Open to useful problems, kind teams, and work that rewards careful thinking.</p></div></section></section>`;
 }
 
 function securitySettings(message = '') {
@@ -442,10 +450,47 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
-const MINIMAL_VIEWS = ['landing', 'account', 'signal'];
+const MINIMAL_VIEWS = ['landing', 'portfolio', 'account', 'signal'];
+const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
+const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
 let minimalGlobalEventsBound = false;
 
 function minimalViewIndex(view) { return Math.max(0, MINIMAL_VIEWS.indexOf(view)); }
+
+function minimalStorageKey(prefix) {
+  const identity = currentUser?.id || currentUser?.username || 'guest';
+  return `${prefix}${identity}`;
+}
+
+function rememberedMinimalView() {
+  try {
+    const view = localStorage.getItem(minimalStorageKey(MINIMAL_VIEW_STORAGE_PREFIX));
+    return MINIMAL_VIEWS.includes(view) ? view : 'landing';
+  } catch {
+    return 'landing';
+  }
+}
+
+function rememberMinimalView(view, page) {
+  if (!MINIMAL_VIEWS.includes(view)) return;
+  try {
+    localStorage.setItem(minimalStorageKey(MINIMAL_VIEW_STORAGE_PREFIX), view);
+    if (view === 'account' && ['profile', 'security'].includes(page)) {
+      localStorage.setItem(minimalStorageKey(MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX), page);
+    }
+  } catch {
+    // The dashboard remains usable when localStorage is unavailable.
+  }
+}
+
+function rememberedMinimalAccountPage() {
+  try {
+    const page = localStorage.getItem(minimalStorageKey(MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX));
+    return ['profile', 'security'].includes(page) ? page : 'profile';
+  } catch {
+    return 'profile';
+  }
+}
 
 function updateMinimalNavigation() {
   const view = root.dataset.minimalView || 'landing';
@@ -469,6 +514,7 @@ function updateMinimalViewportHeight() {
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
+    document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
     document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
       if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
@@ -477,7 +523,20 @@ function bindMinimalEvents(view, page = 'profile') {
       }
       renderMinimal('landing');
     }));
-    document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); }));
+    document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => {
+      if (guestMode) {
+        guestMode = false;
+        const url = new URL(window.location.href);
+        url.searchParams.delete('view');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        renderAuth();
+        return;
+      }
+      await logout();
+      currentUser = null;
+      state = null;
+      renderAuth();
+    }));
     const menuToggle = document.querySelector('[data-menu-toggle]');
     const mobilePanel = document.querySelector('[data-mobile-panel]');
     menuToggle?.addEventListener('click', () => {
@@ -505,7 +564,16 @@ function bindMinimalEvents(view, page = 'profile') {
   document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver ? revealObserver.observe(element) : element.classList.add('is-visible'));
 }
 
-function renderMinimal(view = 'landing', message = '', page = 'profile') {
+function renderMinimal(view = rememberedMinimalView(), message = '', page = rememberedMinimalAccountPage()) {
+  if (guestMode) {
+    view = view === 'portfolio' ? 'portfolio' : 'landing';
+    page = 'profile';
+    const url = new URL(window.location.href);
+    if (view === 'portfolio') url.searchParams.set('view', 'portfolio');
+    else url.searchParams.delete('view');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+  rememberMinimalView(view, page);
   const shell = root.querySelector('.minimal-shell');
   const accountSlide = root.querySelector('[data-minimal-slide="account"]');
   const firstLandingRender = !shell && view === 'landing';
@@ -520,8 +588,15 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   root.dataset.minimalView = view;
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender);
   if (!shell) {
-    const header = `<header class="editorial-nav"><div class="editorial-nav-row"><button class="editorial-brand" data-minimal-home><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button><nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav><button class="editorial-nav-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button><button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button></div><div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button><button class="editorial-mobile-cta" data-minimal-logout>Log out <span class="editorial-arrow">↗</span></button></div></header>`;
-    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section></div></div>`;
+    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
+    const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
+    const ctaLabel = guestMode ? 'Exit' : 'Log out';
+    const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
+    const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>${menu}</div>${mobileNav}</header>`;
+    const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${portfolioPage()}</section>`;
+    const privateSlides = guestMode ? '' : `<section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section>`;
+    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
@@ -530,7 +605,7 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
     bindMinimalEvents(view, page);
   }
   const track = root.querySelector('.minimal-track');
-  if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
+  if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 25}%`);
   window.scrollTo({ top: 0, behavior: 'auto' });
   updateMinimalNavigation();
   const activateLandingView = () => {
@@ -563,8 +638,9 @@ function renderAuth(message = '') {
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
-  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form></section></main>`;
+  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form><div class="guest-entry"><span class="field-note">Want to look around first?</span><button class="button button-quiet" type="button" data-action="guest">Enter as guest</button></div><a class="portfolio-entry" href="./?view=portfolio">View Ben's portfolio <span aria-hidden="true">↗</span></a></section></main>`;
   authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
+  document.querySelector('[data-action="guest"]').addEventListener('click', () => { guestMode = true; currentUser = null; state = null; renderMinimal('landing'); });
   document.addEventListener('keydown', authKeyHandler);
   document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message); } });
 }
@@ -577,7 +653,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { applyPerformanceProfile(); bindScrollIndicator(); bindHeroIntroGesture(); currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
+  try { applyPerformanceProfile(); bindScrollIndicator(); bindHeroIntroGesture(); const requestedView = new URLSearchParams(window.location.search).get('view'); currentUser = await getCurrentUser(); if (!currentUser) { if (requestedView === 'portfolio') { guestMode = true; renderMinimal('portfolio'); return; } renderAuth(); return; } guestMode = false; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(MINIMAL_VIEWS.includes(requestedView) ? requestedView : undefined); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 
