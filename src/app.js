@@ -27,6 +27,7 @@ let scrollIndicatorFrame;
 let heroIntroGestureBound = false;
 let heroIntroConsumed = false;
 let heroIntroResetting = false;
+let heroIntroResetTimer;
 let heroTouchStartY;
 const root = document.querySelector('#app');
 
@@ -55,7 +56,15 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
-    if (heroIntroConsumed && !heroIntroResetting && window.scrollY <= 8 && document.querySelector('.editorial-hero')) heroIntroConsumed = false;
+    if (heroIntroConsumed && !heroIntroResetting && window.scrollY <= 8 && document.querySelector('.editorial-hero')) {
+      heroIntroConsumed = false;
+      heroIntroResetting = true;
+      window.clearTimeout(heroIntroResetTimer);
+      heroIntroResetTimer = window.setTimeout(() => {
+        heroIntroResetting = false;
+        scheduleIndicatorUpdate();
+      }, APP_CONFIG.performance.heroIntroResetMs);
+    }
     const heroHasSettled = heroIntroConsumed && document.querySelector('.editorial-hero');
     document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8 || Boolean(heroHasSettled));
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
@@ -66,7 +75,7 @@ function bindScrollIndicator() {
     scrollIndicatorFrame = window.requestAnimationFrame(() => {
       scrollIndicatorFrame = undefined;
       updateIndicator();
-      updateHeroIntroScale();
+      if (!heroIntroResetting) updateHeroIntroScale();
     });
   };
   window.addEventListener('scroll', () => {
@@ -106,6 +115,7 @@ function settleHeroIntro(resetScroll = false) {
   if (resetScroll) {
     heroIntroResetting = true;
     window.scrollTo({ top: 0, behavior: 'auto' });
+    window.clearTimeout(heroIntroResetTimer);
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => { heroIntroResetting = false; }));
   }
   document.documentElement.classList.add('is-away-from-top', 'is-scrolling');
@@ -475,6 +485,7 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
 function renderAuth(message = '') {
   heroIntroConsumed = false;
   heroIntroResetting = false;
+  window.clearTimeout(heroIntroResetTimer);
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
