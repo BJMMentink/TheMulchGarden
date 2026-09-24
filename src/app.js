@@ -22,16 +22,36 @@ let authDarkMode = true;
 let authKeyHandler;
 let scrollIdleTimer;
 let scrollIndicatorBound = false;
+let scrollIndicatorThumb;
 const root = document.querySelector('#app');
 
 function bindScrollIndicator() {
   if (scrollIndicatorBound) return;
   scrollIndicatorBound = true;
+  const indicator = document.createElement('span');
+  indicator.className = 'scroll-indicator';
+  scrollIndicatorThumb = document.createElement('span');
+  scrollIndicatorThumb.className = 'scroll-indicator-thumb';
+  indicator.append(scrollIndicatorThumb);
+  document.body.append(indicator);
+  const updateIndicator = () => {
+    const documentHeight = document.documentElement.scrollHeight;
+    const viewportHeight = window.innerHeight;
+    const scrollableHeight = Math.max(1, documentHeight - viewportHeight);
+    const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
+    const maxTop = Math.max(0, viewportHeight - thumbHeight);
+    const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
+    scrollIndicatorThumb.style.height = `${thumbHeight}px`;
+    scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
+  };
   window.addEventListener('scroll', () => {
+    updateIndicator();
     document.documentElement.classList.add('is-scrolling');
     window.clearTimeout(scrollIdleTimer);
     scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), 750);
   }, { passive: true });
+  window.addEventListener('resize', updateIndicator, { passive: true });
+  updateIndicator();
 }
 
 function escapeHtml(value) {
