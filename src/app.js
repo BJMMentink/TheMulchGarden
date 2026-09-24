@@ -24,6 +24,9 @@ let scrollIdleTimer;
 let scrollIndicatorBound = false;
 let scrollIndicatorThumb;
 let scrollIndicatorFrame;
+let heroIntroGestureBound = false;
+let heroIntroConsumed = false;
+let heroTouchStartY;
 const root = document.querySelector('#app');
 
 function applyPerformanceProfile() {
@@ -51,10 +54,7 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
-    const dampedScroll = Math.min(window.scrollY, APP_CONFIG.performance.heroScrollDampingDistancePx);
-    const heroScrollOffset = dampedScroll * APP_CONFIG.performance.heroScrollDampingRatio;
     document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8);
-    document.documentElement.style.setProperty('--hero-scroll-offset', `${heroScrollOffset}px`);
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
     scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
   };
@@ -73,6 +73,40 @@ function bindScrollIndicator() {
   }, { passive: true });
   window.addEventListener('resize', scheduleIndicatorUpdate, { passive: true });
   updateIndicator();
+}
+
+function settleHeroIntro() {
+  if (heroIntroConsumed || window.scrollY > 8 || !document.querySelector('.editorial-hero')) return false;
+  heroIntroConsumed = true;
+  document.documentElement.classList.add('is-away-from-top', 'is-scrolling');
+  window.clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), APP_CONFIG.performance.scrollIndicatorFadeMs);
+  return true;
+}
+
+function bindHeroIntroGesture() {
+  if (heroIntroGestureBound) return;
+  heroIntroGestureBound = true;
+  window.addEventListener('wheel', (event) => {
+    if (event.deltaY <= 0 || event.ctrlKey || !event.cancelable) return;
+    if (settleHeroIntro()) event.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchstart', (event) => { heroTouchStartY = event.touches[0]?.clientY; }, { passive: true });
+  window.addEventListener('touchmove', (event) => {
+    const currentY = event.touches[0]?.clientY;
+    if (heroTouchStartY === undefined || currentY === undefined || heroTouchStartY - currentY < 8 || !event.cancelable) return;
+    if (settleHeroIntro()) {
+      event.preventDefault();
+      heroTouchStartY = undefined;
+    }
+  }, { passive: false });
+  window.addEventListener('touchend', () => { heroTouchStartY = undefined; }, { passive: true });
+  window.addEventListener('keydown', (event) => {
+    const activeElement = document.activeElement;
+    if (event.key !== 'ArrowDown' && event.key !== 'PageDown' && event.key !== ' ') return;
+    if (activeElement?.matches('input, textarea, select, button, a, [contenteditable="true"]')) return;
+    if (settleHeroIntro()) event.preventDefault();
+  });
 }
 
 function escapeHtml(value) {
@@ -409,6 +443,8 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
 }
 
 function renderAuth(message = '') {
+  heroIntroConsumed = false;
+  document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
   root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form></section></main>`;
@@ -425,7 +461,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { applyPerformanceProfile(); bindScrollIndicator(); currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
+  try { applyPerformanceProfile(); bindScrollIndicator(); bindHeroIntroGesture(); currentUser = await getCurrentUser(); if (!currentUser) { renderAuth(); return; } members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 
