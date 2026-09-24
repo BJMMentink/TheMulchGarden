@@ -63,6 +63,7 @@ function bindScrollIndicator() {
     scrollIndicatorFrame = window.requestAnimationFrame(() => {
       scrollIndicatorFrame = undefined;
       updateIndicator();
+      updateHeroIntroScale();
     });
   };
   window.addEventListener('scroll', () => {
@@ -73,6 +74,15 @@ function bindScrollIndicator() {
   }, { passive: true });
   window.addEventListener('resize', scheduleIndicatorUpdate, { passive: true });
   updateIndicator();
+}
+
+function updateHeroIntroScale() {
+  const hero = document.querySelector('.editorial-hero');
+  if (!hero || document.documentElement.classList.contains('is-away-from-top') || !hero.offsetWidth) return;
+  const rect = hero.getBoundingClientRect();
+  const verticalInset = Math.max(0, Math.min(rect.top, window.innerHeight - rect.bottom));
+  const horizontalScale = Math.max(0.9, Math.min(1, 1 - ((verticalInset * 2) / hero.offsetWidth)));
+  document.documentElement.style.setProperty('--hero-intro-scale-x', horizontalScale.toFixed(4));
 }
 
 function settleHeroIntro() {
@@ -439,7 +449,7 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
   window.scrollTo({ top: 0, behavior: 'auto' });
   updateMinimalNavigation();
-  requestAnimationFrame(updateMinimalViewportHeight);
+  requestAnimationFrame(() => { updateHeroIntroScale(); updateMinimalViewportHeight(); });
 }
 
 function renderAuth(message = '') {
