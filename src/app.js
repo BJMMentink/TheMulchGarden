@@ -226,7 +226,7 @@ function minimalLanding() {
 }
 
 function securitySettings(message = '') {
-  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Update the details used to sign in to The Mulch Garden.</p></div><form class="settings-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save</button></form></section>`;
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Manage the details you use to sign in.</p></div><form class="settings-card security-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<section class="security-section"><div><span class="eyebrow">Account details</span><h3>Username</h3><p>This is how you identify yourself when signing in.</p></div><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label></section><section class="security-section"><div><span class="eyebrow">Password</span><h3>Change your password</h3><p>Use at least four characters. You can leave the new password blank to keep the current one.</p></div><div class="security-fields"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label></div></section><div class="security-actions"><button class="button" type="submit">Save changes</button></div></form></section>`;
 }
 
 function profileInitials() {
@@ -237,7 +237,7 @@ function profileInitials() {
 function profilePage(message = '') {
   const profile = ensureProfile();
   const avatar = profile.avatarDataUrl ? `<img src="${escapeHtml(profile.avatarDataUrl)}" alt="">` : `<span>${escapeHtml(profileInitials())}</span>`;
-  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Your profile</span><h2>Tell us about yourself.</h2><p>This information is private to your account and can be changed whenever you like.</p></div><form class="profile-card card" id="profile-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<div class="profile-identity"><div class="profile-avatar">${avatar}</div><label class="upload-control">Change picture<input name="avatar" type="file" accept="image/png,image/jpeg,image/webp"></label><span class="field-note">A small square image works best.</span></div><div class="profile-fields"><label>Display name<input name="displayName" maxlength="80" value="${escapeHtml(profile.displayName)}" placeholder="How should people see you?"></label><label>About you<textarea name="bio" maxlength="500" placeholder="A few words about yourself">${escapeHtml(profile.bio)}</textarea></label><label>Location<input name="location" maxlength="80" value="${escapeHtml(profile.location)}" placeholder="Optional"></label><label>Pronouns<input name="pronouns" maxlength="40" value="${escapeHtml(profile.pronouns)}" placeholder="Optional"></label><label>Website<input name="website" maxlength="160" type="url" value="${escapeHtml(profile.website)}" placeholder="https://"></label></div><button class="button" type="submit">Save profile</button></form></section>`;
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Your profile</span><h2>Tell us about yourself.</h2><p>This information is private to your account and can be changed whenever you like.</p></div><form class="profile-card card" id="profile-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<div class="profile-identity"><div class="profile-photo-field"><button type="button" class="profile-photo-dropzone" data-avatar-trigger aria-label="Choose a profile picture"><span class="profile-avatar">${avatar}</span><span class="profile-photo-overlay">Change photo</span></button><input id="avatar-input" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="profile-photo-actions"><button type="button" class="text-button" data-avatar-trigger>Upload photo</button><button type="button" class="text-button danger" data-avatar-remove>Remove</button></div><span class="field-note">Drag an image here or choose one. It will be cropped neatly.</span></div></div><div class="profile-fields"><label>Display name<input name="displayName" maxlength="80" value="${escapeHtml(profile.displayName)}" placeholder="How should people see you?"></label><label>About you<textarea name="bio" maxlength="500" placeholder="A few words about yourself">${escapeHtml(profile.bio)}</textarea></label><label>Location<input name="location" maxlength="80" value="${escapeHtml(profile.location)}" placeholder="Optional"></label></div><button class="button" type="submit">Save profile</button></form></section>`;
 }
 
 function accountPage(page = 'profile', message = '') {
@@ -246,7 +246,7 @@ function accountPage(page = 'profile', message = '') {
 }
 
 function ensureProfile() {
-  state.profile = { displayName: '', bio: '', location: '', pronouns: '', website: '', avatarDataUrl: '', ...(state.profile || {}) };
+  state.profile = { displayName: state.profile?.displayName || '', bio: state.profile?.bio || '', location: state.profile?.location || '', avatarDataUrl: state.profile?.avatarDataUrl || '' };
   return state.profile;
 }
 
@@ -254,13 +254,34 @@ function resizeAvatar(file) {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('That image could not be read.')); reader.onload = () => { const image = new Image(); image.onerror = () => reject(new Error('That image could not be loaded.')); image.onload = () => { const canvas = document.createElement('canvas'); const size = 192; canvas.width = size; canvas.height = size; const context = canvas.getContext('2d'); const scale = Math.max(size / image.width, size / image.height); const width = image.width * scale; const height = image.height * scale; context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height); const dataUrl = canvas.toDataURL('image/jpeg', 0.72); if (dataUrl.length > 90000) reject(new Error('Please choose a smaller image.')); else resolve(dataUrl); }; image.src = reader.result; }; reader.readAsDataURL(file); });
 }
 
+function previewAvatar(file) {
+  if (!file) return;
+  const image = document.querySelector('.profile-avatar');
+  if (!image) return;
+  const previewUrl = URL.createObjectURL(file);
+  image.innerHTML = '';
+  const preview = document.createElement('img');
+  preview.alt = 'Selected profile picture preview';
+  preview.src = previewUrl;
+  preview.onload = () => URL.revokeObjectURL(previewUrl);
+  image.append(preview);
+}
+
 function bindMinimalEvents(view, page = 'profile') {
   document.querySelector('[data-minimal-account]')?.addEventListener('click', () => renderMinimal('account', '', 'profile'));
   document.querySelector('[data-minimal-home]')?.addEventListener('click', () => renderMinimal('landing'));
   document.querySelector('[data-minimal-logout]')?.addEventListener('click', async () => { await logout(); currentUser = null; state = null; renderAuth(); });
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
+  const avatarInput = document.querySelector('#avatar-input');
+  document.querySelectorAll('[data-avatar-trigger]').forEach((button) => button.addEventListener('click', () => avatarInput?.click()));
+  avatarInput?.addEventListener('change', () => previewAvatar(avatarInput.files?.[0]));
+  const avatarDropzone = document.querySelector('[data-avatar-trigger].profile-photo-dropzone');
+  avatarDropzone?.addEventListener('dragover', (event) => { event.preventDefault(); avatarDropzone.classList.add('is-dragging'); });
+  avatarDropzone?.addEventListener('dragleave', () => avatarDropzone.classList.remove('is-dragging'));
+  avatarDropzone?.addEventListener('drop', (event) => { event.preventDefault(); avatarDropzone.classList.remove('is-dragging'); const file = event.dataTransfer.files?.[0]; if (!file || !avatarInput) return; try { const transfer = new DataTransfer(); transfer.items.add(file); avatarInput.files = transfer.files; previewAvatar(file); } catch { window.alert('Please use the Upload photo button for this browser.'); } });
+  document.querySelector('[data-avatar-remove]')?.addEventListener('click', () => { ensureProfile().avatarDataUrl = ''; if (avatarInput) avatarInput.value = ''; const avatar = document.querySelector('.profile-avatar'); if (avatar) avatar.innerHTML = `<span>${escapeHtml(profileInitials())}</span>`; });
   document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('account', 'Saved.', 'security'); } catch (error) { renderMinimal('account', error.message, 'security'); } });
-  document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { ...state.profile, displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), pronouns: String(values.get('pronouns') || '').trim(), website: String(values.get('website') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
+  document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
 }
 
 function renderMinimal(view = 'landing', message = '', page = 'profile') {

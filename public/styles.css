@@ -232,6 +232,13 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .settings-card { display: grid; gap: var(--space-4); padding: var(--space-5); }
 .settings-card .button { justify-self: start; }
 .form-success { border: 1px solid #3e704e; border-radius: var(--radius-sm); padding: var(--space-3); background: #16271b; color: #b9ddc0; font-size: 0.82rem; }
+.security-card { gap: 0; overflow: hidden; padding: 0; }
+.security-section { display: grid; grid-template-columns: 1fr minmax(12rem, 18rem); gap: var(--space-5); align-items: start; padding: var(--space-5); border-bottom: 1px solid var(--color-border); }
+.security-section h3 { margin-top: var(--space-2); }
+.security-section p { margin-top: var(--space-2); font-size: 0.8rem; }
+.security-section > label { align-self: center; }
+.security-fields { display: grid; gap: var(--space-3); }
+.security-actions { display: flex; justify-content: flex-end; padding: var(--space-4) var(--space-5); background: var(--color-surface-raised); }
 .account-layout { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--space-6); align-items: start; }
 .account-sidebar { position: sticky; top: var(--space-4); display: grid; gap: var(--space-5); padding: var(--space-4) 0; }
 .account-sidebar strong { display: block; margin-top: var(--space-2); color: var(--color-text); font-size: 1.05rem; }
@@ -242,12 +249,16 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .account-context { display: grid; gap: var(--space-4); max-width: 42rem; }
 .account-context .settings-heading p { max-width: 34rem; margin-top: var(--space-2); }
 .profile-card { display: grid; gap: var(--space-5); padding: var(--space-5); }
-.profile-identity { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); }
+.profile-identity { display: grid; align-items: center; }
+.profile-photo-field { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-3); }
 .profile-avatar { display: grid; width: 5rem; height: 5rem; overflow: hidden; place-items: center; border: 1px solid #6b2633; border-radius: 50%; background: var(--color-primary-soft); color: #f0aeb5; font-size: 1.25rem; font-weight: 800; }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.upload-control { align-self: end; }
-.upload-control input { min-height: auto; padding: 0.35rem; background: var(--color-surface-raised); }
-.profile-identity .field-note { grid-column: 2; margin-top: -0.5rem; }
+.profile-photo-dropzone { position: relative; display: grid; width: 5rem; height: 5rem; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; }
+.profile-photo-dropzone::after { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.68); color: #fff; content: 'Change'; font-size: 0.72rem; font-weight: 800; opacity: 0; transition: opacity 140ms ease; }
+.profile-photo-dropzone:hover::after, .profile-photo-dropzone.is-dragging::after, .profile-photo-dropzone:focus-visible::after { opacity: 1; }
+.profile-photo-dropzone.is-dragging .profile-avatar { border-color: #f0aeb5; box-shadow: 0 0 0 0.25rem rgba(193, 58, 73, 0.25); }
+.profile-photo-actions { display: flex; align-items: center; gap: var(--space-3); }
+.profile-photo-field > .field-note { grid-column: 2; margin-top: -0.5rem; }
 .profile-fields { display: grid; gap: var(--space-3); }
 .profile-fields textarea { min-height: 7rem; resize: vertical; }
 .auth-tabs { display: flex; gap: var(--space-4); border-bottom: 1px solid var(--color-border); }
@@ -289,6 +300,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
   .account-sidebar { position: static; gap: var(--space-3); padding: 0; }
   .account-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-link { font-size: 0.78rem; }
+  .security-section { grid-template-columns: 1fr; gap: var(--space-3); }
+  .security-section > label { align-self: auto; }
 }
 
 @media (min-width: 62rem) {
