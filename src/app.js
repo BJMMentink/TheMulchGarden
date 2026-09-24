@@ -26,6 +26,7 @@ let scrollIndicatorThumb;
 let scrollIndicatorFrame;
 let heroIntroGestureBound = false;
 let heroIntroConsumed = false;
+let heroIntroResetting = false;
 let heroTouchStartY;
 const root = document.querySelector('#app');
 
@@ -54,6 +55,7 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
+    if (heroIntroConsumed && !heroIntroResetting && window.scrollY <= 8 && document.querySelector('.editorial-hero')) heroIntroConsumed = false;
     const heroHasSettled = heroIntroConsumed && document.querySelector('.editorial-hero');
     document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8 || Boolean(heroHasSettled));
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
@@ -85,12 +87,15 @@ function updateHeroIntroScale() {
   const hero = document.querySelector('.editorial-hero');
   if (!hero || document.documentElement.classList.contains('is-away-from-top') || !hero.offsetWidth) return;
   const rect = hero.getBoundingClientRect();
-  const currentVerticalScale = window.matchMedia('(max-width: 37.99rem)').matches ? 0.975 : 0.965;
+  const rootStyle = getComputedStyle(document.documentElement);
+  const baseScale = window.matchMedia('(max-width: 37.99rem)').matches ? 0.975 : 0.965;
+  const currentHorizontalScale = Number(rootStyle.getPropertyValue('--hero-intro-scale-x')) || baseScale;
+  const currentVerticalScale = Number(rootStyle.getPropertyValue('--hero-intro-scale-y')) || baseScale;
   const verticalInset = Math.max(0, Math.min(rect.top, window.innerHeight - rect.bottom));
   const horizontalInset = Math.max(0, Math.min(rect.left, window.innerWidth - rect.right));
-  const desiredInset = Math.max(verticalInset, horizontalInset, APP_CONFIG.performance.heroIntroInsetPx);
-  const verticalScale = Math.max(0.9, Math.min(1, currentVerticalScale - ((desiredInset - verticalInset) * 2 / hero.offsetHeight)));
-  const horizontalScale = Math.max(0.9, Math.min(1, currentVerticalScale - ((desiredInset - horizontalInset) * 2 / hero.offsetWidth)));
+  const desiredInset = APP_CONFIG.performance.heroIntroInsetPx;
+  const verticalScale = Math.max(0.9, Math.min(1, currentVerticalScale + ((verticalInset - desiredInset) * 2 / hero.offsetHeight)));
+  const horizontalScale = Math.max(0.9, Math.min(1, currentHorizontalScale + ((horizontalInset - desiredInset) * 2 / hero.offsetWidth)));
   document.documentElement.style.setProperty('--hero-intro-scale-x', horizontalScale.toFixed(4));
   document.documentElement.style.setProperty('--hero-intro-scale-y', verticalScale.toFixed(4));
 }
@@ -98,7 +103,11 @@ function updateHeroIntroScale() {
 function settleHeroIntro(resetScroll = false) {
   if (heroIntroConsumed || (!resetScroll && window.scrollY > 8) || !document.querySelector('.editorial-hero')) return false;
   heroIntroConsumed = true;
-  if (resetScroll) window.scrollTo({ top: 0, behavior: 'auto' });
+  if (resetScroll) {
+    heroIntroResetting = true;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => { heroIntroResetting = false; }));
+  }
   document.documentElement.classList.add('is-away-from-top', 'is-scrolling');
   window.clearTimeout(scrollIdleTimer);
   scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), APP_CONFIG.performance.scrollIndicatorFadeMs);
@@ -465,6 +474,7 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
 
 function renderAuth(message = '') {
   heroIntroConsumed = false;
+  heroIntroResetting = false;
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
