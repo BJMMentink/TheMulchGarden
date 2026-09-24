@@ -54,7 +54,8 @@ function bindScrollIndicator() {
     const thumbHeight = Math.max(40, Math.round((viewportHeight / documentHeight) * viewportHeight));
     const maxTop = Math.max(0, viewportHeight - thumbHeight);
     const top = Math.round((window.scrollY / scrollableHeight) * maxTop);
-    document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8);
+    const heroHasSettled = heroIntroConsumed && document.querySelector('.editorial-hero');
+    document.documentElement.classList.toggle('is-away-from-top', window.scrollY > 8 || Boolean(heroHasSettled));
     scrollIndicatorThumb.style.height = `${thumbHeight}px`;
     scrollIndicatorThumb.style.transform = `translateY(${top}px)`;
   };
@@ -67,6 +68,10 @@ function bindScrollIndicator() {
     });
   };
   window.addEventListener('scroll', () => {
+    if (!heroIntroConsumed && window.scrollY > 8 && document.querySelector('.editorial-hero')) {
+      settleHeroIntro(true);
+      return;
+    }
     scheduleIndicatorUpdate();
     document.documentElement.classList.add('is-scrolling');
     window.clearTimeout(scrollIdleTimer);
@@ -80,14 +85,20 @@ function updateHeroIntroScale() {
   const hero = document.querySelector('.editorial-hero');
   if (!hero || document.documentElement.classList.contains('is-away-from-top') || !hero.offsetWidth) return;
   const rect = hero.getBoundingClientRect();
+  const currentVerticalScale = window.matchMedia('(max-width: 37.99rem)').matches ? 0.975 : 0.965;
   const verticalInset = Math.max(0, Math.min(rect.top, window.innerHeight - rect.bottom));
-  const horizontalScale = Math.max(0.9, Math.min(1, 1 - ((verticalInset * 2) / hero.offsetWidth)));
+  const horizontalInset = Math.max(0, Math.min(rect.left, window.innerWidth - rect.right));
+  const desiredInset = Math.max(verticalInset, horizontalInset, APP_CONFIG.performance.heroIntroInsetPx);
+  const verticalScale = Math.max(0.9, Math.min(1, currentVerticalScale - ((desiredInset - verticalInset) * 2 / hero.offsetHeight)));
+  const horizontalScale = Math.max(0.9, Math.min(1, currentVerticalScale - ((desiredInset - horizontalInset) * 2 / hero.offsetWidth)));
   document.documentElement.style.setProperty('--hero-intro-scale-x', horizontalScale.toFixed(4));
+  document.documentElement.style.setProperty('--hero-intro-scale-y', verticalScale.toFixed(4));
 }
 
-function settleHeroIntro() {
-  if (heroIntroConsumed || window.scrollY > 8 || !document.querySelector('.editorial-hero')) return false;
+function settleHeroIntro(resetScroll = false) {
+  if (heroIntroConsumed || (!resetScroll && window.scrollY > 8) || !document.querySelector('.editorial-hero')) return false;
   heroIntroConsumed = true;
+  if (resetScroll) window.scrollTo({ top: 0, behavior: 'auto' });
   document.documentElement.classList.add('is-away-from-top', 'is-scrolling');
   window.clearTimeout(scrollIdleTimer);
   scrollIdleTimer = window.setTimeout(() => document.documentElement.classList.remove('is-scrolling'), APP_CONFIG.performance.scrollIndicatorFadeMs);
