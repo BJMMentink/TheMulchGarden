@@ -505,6 +505,8 @@ function bindMinimalEvents(view, page = 'profile') {
 function renderMinimal(view = 'landing', message = '', page = 'profile') {
   const shell = root.querySelector('.minimal-shell');
   const accountSlide = root.querySelector('[data-minimal-slide="account"]');
+  const previousView = root.dataset.minimalView;
+  const waitsForSlide = Boolean(shell && previousView && previousView !== view);
   heroIntroReady = false;
   heroIntroConsumed = false;
   heroIntroResetting = false;
@@ -526,11 +528,14 @@ function renderMinimal(view = 'landing', message = '', page = 'profile') {
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 33.333333}%`);
   window.scrollTo({ top: 0, behavior: 'auto' });
   updateMinimalNavigation();
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  const finishViewTransition = () => {
+    if (root.dataset.minimalView !== view) return;
     heroIntroReady = view === 'landing';
-    updateHeroIntroScale();
+    if (heroIntroReady) updateHeroIntroScale();
     updateMinimalViewportHeight();
-  }));
+  };
+  if (waitsForSlide && track) track.addEventListener('transitionend', finishViewTransition, { once: true });
+  else requestAnimationFrame(() => requestAnimationFrame(finishViewTransition));
 }
 
 function renderAuth(message = '') {
