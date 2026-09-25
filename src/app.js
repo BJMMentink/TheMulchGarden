@@ -47,6 +47,7 @@ function applyPerformanceProfile() {
 function bindScrollIndicator() {
   if (scrollIndicatorBound) return;
   scrollIndicatorBound = true;
+  if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
   const indicator = document.createElement('span');
   indicator.className = 'scroll-indicator';
   scrollIndicatorThumb = document.createElement('span');
@@ -516,6 +517,16 @@ function updateMinimalViewportHeight() {
   if (viewport && activeSlide) viewport.style.height = `${activeSlide.scrollHeight}px`;
 }
 
+function resetMinimalScrollPosition() {
+  const reset = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+  reset();
+  window.requestAnimationFrame(reset);
+}
+
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
@@ -619,7 +630,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   }
   const track = root.querySelector('.minimal-track');
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 20}%`);
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  resetMinimalScrollPosition();
   updateMinimalNavigation();
   const activateLandingView = () => {
     if (root.dataset.minimalView !== view) return;
@@ -634,6 +645,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   };
   const finishViewTransition = () => {
     if (root.dataset.minimalView !== view) return;
+    resetMinimalScrollPosition();
     window.clearTimeout(heroIntroResetTimer);
     if (view === 'landing' && waitsForSlide) heroIntroResetTimer = window.setTimeout(activateLandingView, APP_CONFIG.performance.heroIntroResetMs);
     else activateLandingView();
