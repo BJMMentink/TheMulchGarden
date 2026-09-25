@@ -33,6 +33,8 @@ let heroIntroResetTimer;
 let heroIntroReady = false;
 let heroIntroInitialFull = false;
 let heroTouchStartY;
+let boardRepoCache = Object.create(null);
+let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
 const root = document.querySelector('#app');
 
 function applyPerformanceProfile() {
@@ -416,6 +418,76 @@ function aboutPage() {
   return `<section class="about-page"><div class="about-hero"><div><span class="editorial-kicker">About the builder / 002</span><h2>Good work needs a clear <em>point of view.</em></h2><p>I’m interested in the space where software, creativity, and everyday usefulness meet. I build foundations that stay understandable: clear interfaces, small modules, portable data, and room to grow.</p></div><aside class="about-signal"><span class="editorial-kicker">Current mode</span><strong>Building with intent.</strong><div class="about-signal-line"><i aria-hidden="true"></i> Open to useful problems</div></aside></div><section class="about-profile"><article class="about-profile-card"><span class="editorial-kicker">A little more context</span><h3>Thoughtful systems. Human-sized steps.</h3><p>I like projects with a clear next action, enough structure to keep momentum, and enough room for iteration to make the result better.</p><p>This is a living portfolio. As each project reaches a shareable milestone, the work can grow into a clearer case study with the decisions, process, and lessons behind it.</p><button class="portfolio-button portfolio-button-light" data-minimal-portfolio>View the work <span class="editorial-arrow">↗</span></button></article><aside class="about-profile-aside"><span>02—03</span><p>Open to kind teams, useful problems, and work that rewards careful thinking.</p><div class="about-profile-meta"><span>Focus</span><strong>Software · systems · craft</strong></div></aside></section><section class="portfolio-rhythm"><div class="portfolio-section-heading"><div><span class="editorial-kicker">Working rhythm / 003</span><h3>Progress is a practice.</h3></div><p>The work changes shape, but the habit stays visible: make a small improvement, then come back for the next one.</p></div><div class="portfolio-rhythm-panel"><div class="portfolio-rhythm-intro"><span class="portfolio-rhythm-mark">↗</span><p>I work best when a project has a clear next action, room for iteration, and enough structure to keep momentum without smothering curiosity.</p></div><div class="portfolio-rhythm-list"><div><span>Active build</span><i><b style="width: 88%"></b></i><strong>Now</strong></div><div><span>Focused sprint</span><i><b style="width: 64%"></b></i><strong>When it matters</strong></div><div><span>Reflection &amp; polish</span><i><b style="width: 42%"></b></i><strong>Always nearby</strong></div></div></div></section></section>`;
 }
 
+function ensureBoardState() {
+  if (!state.board || typeof state.board !== 'object') state.board = {};
+  if (!Array.isArray(state.board.githubProfiles)) state.board.githubProfiles = [];
+  if (!Array.isArray(state.board.folders) || !state.board.folders.length) state.board.folders = [{ id: 'board-folder-inbox', name: 'Inbox' }];
+  if (!Array.isArray(state.board.projects)) state.board.projects = [];
+  return state.board;
+}
+
+function boardProfileUrl(value) {
+  const raw = String(value || '').trim().replace(/\/+$/, '');
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://github.com/${raw.replace(/^@/, '')}`);
+    if (url.hostname.toLowerCase() !== 'github.com') return null;
+    const username = url.pathname.split('/').filter(Boolean)[0];
+    if (!username || !/^[A-Za-z0-9-]{1,39}$/.test(username)) return null;
+    return { username, url: `https://github.com/${username}` };
+  } catch { return null; }
+}
+
+function boardAllRepos(board) {
+  return board.githubProfiles.flatMap((profile) => (boardRepoCache[profile.username] || []).map((repo) => ({ ...repo, boardOwner: profile.username })));
+}
+
+function boardValues(board, key) {
+  const values = boardAllRepos(board).flatMap((repo) => key === 'owner' ? [repo.owner?.login || repo.boardOwner] : key === 'topic' ? (repo.topics || []) : [repo[key]]);
+  return [...new Set([...values, ...board.projects.flatMap((project) => key === 'owner' ? [project.ownerUsername] : key === 'topic' ? (project.topics || []) : [project[key]])].filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function boardMatches(item) {
+  const query = boardFilters.query.trim().toLocaleLowerCase();
+  const topics = Array.isArray(item.topics) ? item.topics : [];
+  const owner = item.owner?.login || item.boardOwner || item.ownerUsername || '';
+  const text = [item.name, item.title, item.description, item.note, item.language, owner, ...topics].filter(Boolean).join(' ').toLocaleLowerCase();
+  return (!query || text.includes(query))
+    && (boardFilters.folder === 'all' || item.kind === 'repo' || item.folderId === boardFilters.folder)
+    && (boardFilters.language === 'all' || item.language === boardFilters.language)
+    && (boardFilters.topic === 'all' || topics.includes(boardFilters.topic))
+    && (boardFilters.owner === 'all' || owner === boardFilters.owner);
+}
+
+function boardVisibilityLabel(project) {
+  if (project.visibility === 'all') return 'All users';
+  if (project.visibility === 'members') return `${(project.memberIds || []).length} people${(project.groupNames || []).length ? ` · ${(project.groupNames || []).length} groups` : ''}`;
+  return 'Private';
+}
+
+function boardRepoCard(repo) {
+  const linked = ensureBoardState().projects.find((project) => project.repoUrl === repo.html_url);
+  const topics = (repo.topics || []).slice(0, 4);
+  return `<article class="board-card board-repo-card"><div class="board-card-topline"><span class="board-source-pill">GitHub repo</span><span class="board-card-owner">${escapeHtml(repo.owner?.login || repo.boardOwner)}</span></div><div class="board-card-copy"><h3>${escapeHtml(repo.name)}</h3><p>${escapeHtml(repo.description || 'No description yet. Add a note when you pin this project to the board.')}</p></div><div class="board-card-meta"><span>${escapeHtml(repo.language || 'Unspecified')}</span><span>${Number(repo.stargazers_count || 0)} stars</span><span>Updated ${escapeHtml(new Date(repo.updated_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</span></div><div class="board-tag-row">${topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${linked ? `<span class="board-linked-state">Pinned · ${escapeHtml(boardVisibilityLabel(linked))}</span>` : `<button class="button button-quiet" data-board-link-repo data-board-owner="${escapeHtml(repo.owner?.login || repo.boardOwner)}" data-board-repo="${escapeHtml(repo.name)}">Pin to board</button>`}<a class="text-button" href="${escapeHtml(repo.html_url)}" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div></article>`;
+}
+
+function boardProjectCard(project) {
+  const folder = ensureBoardState().folders.find((item) => item.id === project.folderId);
+  return `<article class="board-card board-project-card"><div class="board-card-topline"><span class="board-source-pill board-source-project">Board project</span><span class="board-card-owner">${escapeHtml(project.ownerUsername || currentUser.username)}</span></div><div class="board-card-copy"><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(project.note || project.description || 'A project idea waiting for its next useful step.')}</p></div><div class="board-card-meta"><span>${escapeHtml(project.language || 'Concept')}</span><span>${escapeHtml(boardVisibilityLabel(project))}</span><span>${escapeHtml(folder?.name || 'Inbox')}</span></div><div class="board-tag-row">${(project.topics || []).map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${project.repoUrl ? `<a class="text-button" href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noreferrer">Open source ↗</a>` : '<span class="board-linked-state">Idea / concept</span>'}<button class="text-button danger" data-board-remove="${escapeHtml(project.id)}">Remove from board</button></div></article>`;
+}
+
+function boardPage() {
+  const board = ensureBoardState();
+  const repos = boardAllRepos(board).filter(boardMatches);
+  const projects = board.projects.filter(boardMatches);
+  const languages = boardValues(board, 'language');
+  const topics = boardValues(board, 'topic');
+  const owners = boardValues(board, 'owner');
+  const cards = [...projects.map(boardProjectCard), ...repos.map(boardRepoCard)].join('');
+  const profileCards = board.githubProfiles.length ? board.githubProfiles.map((profile) => `<div class="board-profile-row"><span class="board-profile-mark">GH</span><div><strong>${escapeHtml(profile.username)}</strong><span>${(boardRepoCache[profile.username] || []).length || '—'} public repos loaded</span></div><button class="text-button" data-board-refresh="${escapeHtml(profile.username)}">Refresh</button><button class="text-button danger" data-board-unlink="${escapeHtml(profile.username)}">Unlink</button></div>`).join('') : '<p class="board-empty-copy">No profiles connected yet. A public profile URL is all this board needs.</p>';
+  const memberChecks = members.filter((member) => member.id !== currentUser.id).map((member) => `<label class="board-check"><input type="checkbox" name="memberIds" value="${escapeHtml(member.id)}"><span>${escapeHtml(member.username)}</span></label>`).join('');
+  return `<section class="board-page"><div class="board-layout"><aside class="board-sidebar"><div class="board-sidebar-heading"><span class="editorial-kicker">Project board / 004</span><h2>Shared work, clearly held.</h2><p>Link public GitHub work, keep ideas in folders, and decide who can see each project.</p></div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>Folders</span><button class="text-button" data-board-add-folder>＋</button></div><button class="board-folder-link ${boardFilters.folder === 'all' ? 'is-active' : ''}" data-board-folder="all"><span>All projects</span><strong>${board.projects.length + boardAllRepos(board).length}</strong></button>${board.folders.map((folder) => `<button class="board-folder-link ${boardFilters.folder === folder.id ? 'is-active' : ''}" data-board-folder="${escapeHtml(folder.id)}"><span>${escapeHtml(folder.name)}</span><strong>${board.projects.filter((project) => project.folderId === folder.id).length}</strong></button>`).join('')}</div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>GitHub profiles</span><span class="board-count">${board.githubProfiles.length}/3</span></div>${profileCards}<form id="board-github-form" class="board-sidebar-form"><label>Public profile URL<input name="profileUrl" required placeholder="github.com/username" autocomplete="url"></label><button class="button button-quiet" type="submit" ${board.githubProfiles.length >= 3 ? 'disabled' : ''}>Link profile</button></form></div><div class="board-sidebar-note"><span class="editorial-kicker">Safety boundary</span><p>Mulch Garden only reads public repository metadata. It never receives GitHub passwords, tokens, or write access.</p></div>${currentUser.role === 'admin' ? '<div class="board-admin-note"><span class="editorial-kicker">Admin view</span><p>Moderation can hide or remove board entries. Removing a card never deletes the source repository on GitHub.</p></div>' : ''}</aside><main class="board-main"><div class="board-main-heading"><div><span class="editorial-kicker">A social project surface</span><h2>Projects with somewhere to go.</h2><p>Browse public repositories and collect the concepts worth sharing with the right people.</p></div><details class="board-compose"><summary><span>＋</span> Add a project</summary><form id="board-project-form"><label>Project name<input name="title" required maxlength="100" placeholder="A project, idea, or code base"></label><label>Source URL<input name="repoUrl" type="url" placeholder="https://github.com/…"></label><label>Note<textarea name="note" maxlength="500" placeholder="Why is this worth sharing?"></textarea></label><div class="board-form-grid"><label>Folder<select name="folderId">${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<input name="language" placeholder="JavaScript, Python…"></label></div><label>Topics<input name="topics" placeholder="agents, games, design"></label><label>Share with<select name="visibility"><option value="private">Private to me</option><option value="members">Specific people / groups</option><option value="all">All users</option></select></label><fieldset class="board-share-people"><legend>Specific people</legend>${memberChecks || '<span class="field-note">No other users are available yet.</span>'}</fieldset><label>Group names<input name="groupNames" placeholder="e.g. game builders, study group"></label><button class="button" type="submit">Add to board</button></form></details></div><div class="board-stats"><article><strong>${boardAllRepos(board).length}</strong><span>public repos loaded</span></article><article><strong>${board.projects.length}</strong><span>board projects</span></article><article><strong>${board.githubProfiles.length}/3</strong><span>GitHub profiles</span></article></div><div class="board-toolbar"><label class="board-search">Search board<input data-board-filter="query" value="${escapeHtml(boardFilters.query)}" placeholder="Search projects, users, topics…"></label><label>Folder<select data-board-filter="folder"><option value="all">All folders</option>${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}" ${boardFilters.folder === folder.id ? 'selected' : ''}>${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<select data-board-filter="language"><option value="all">All languages</option>${languages.map((language) => `<option value="${escapeHtml(language)}" ${boardFilters.language === language ? 'selected' : ''}>${escapeHtml(language)}</option>`).join('')}</select></label><label>Topic<select data-board-filter="topic"><option value="all">All topics</option>${topics.map((topic) => `<option value="${escapeHtml(topic)}" ${boardFilters.topic === topic ? 'selected' : ''}>${escapeHtml(topic)}</option>`).join('')}</label><label>User<select data-board-filter="owner"><option value="all">All users</option>${owners.map((owner) => `<option value="${escapeHtml(owner)}" ${boardFilters.owner === owner ? 'selected' : ''}>${escapeHtml(owner)}</option>`).join('')}</select></label></div><div class="board-results-heading"><span>${cards ? `${projects.length + repos.length} results` : 'No projects yet'}</span><span>Public metadata · curated by people</span></div><div class="board-grid">${cards || '<article class="board-empty-state"><span class="board-empty-icon">⌘</span><h3>Start with a public GitHub profile.</h3><p>Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.</p></article>'}</div></main></div></section>`;
+}
+
 function securitySettings(message = '') {
   return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Manage the details you use to sign in.</p></div><form class="settings-card security-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<section class="security-section"><div><span class="eyebrow">Account details</span><h3>Username</h3><p>This is how you identify yourself when signing in.</p></div><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label></section><section class="security-section"><div><span class="eyebrow">Password</span><h3>Change your password</h3><p>Use at least four characters. You can leave the new password blank to keep the current one.</p></div><div class="security-fields"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label></div></section><div class="security-actions"><button class="button" type="submit">Save changes</button></div></form></section>`;
 }
@@ -458,7 +530,7 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
-const MINIMAL_VIEWS = ['landing', 'portfolio', 'about', 'account', 'signal'];
+const MINIMAL_VIEWS = ['landing', 'portfolio', 'board', 'about', 'account', 'signal'];
 const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
 const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
 let minimalGlobalEventsBound = false;
@@ -529,11 +601,46 @@ function resetMinimalScrollPosition() {
   window.requestAnimationFrame(reset);
 }
 
+async function loadBoardProfile(username) {
+  const response = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+  if (!response.ok) throw new Error(response.status === 404 ? 'That public GitHub profile could not be found.' : 'GitHub did not return public repositories right now.');
+  boardRepoCache[username] = (await response.json()).filter((repo) => !repo.fork).map((repo) => ({ ...repo, topics: Array.isArray(repo.topics) ? repo.topics : [] }));
+}
+
+function queueBoardProfileLoads() {
+  const pending = ensureBoardState().githubProfiles.filter((profile) => !boardRepoCache[profile.username]);
+  if (!pending.length) return;
+  Promise.allSettled(pending.map((profile) => loadBoardProfile(profile.username))).then(() => { if (root.dataset.minimalView === 'board') renderMinimal('board'); });
+}
+
+function bindBoardEvents() {
+  document.querySelector('#board-github-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const board = ensureBoardState();
+    const profile = boardProfileUrl(new FormData(event.currentTarget).get('profileUrl'));
+    if (!profile) { window.alert('Enter a public GitHub profile URL, such as github.com/octocat.'); return; }
+    if (board.githubProfiles.some((item) => item.username.toLocaleLowerCase() === profile.username.toLocaleLowerCase())) { window.alert('That GitHub profile is already linked.'); return; }
+    if (board.githubProfiles.length >= 3) { window.alert('You can link up to three GitHub profiles.'); return; }
+    board.githubProfiles.push({ ...profile, addedAt: new Date().toISOString() });
+    await saveState(state);
+    try { await loadBoardProfile(profile.username); renderMinimal('board'); } catch (error) { renderMinimal('board'); window.alert(error.message); }
+  });
+  document.querySelectorAll('[data-board-refresh]').forEach((button) => button.addEventListener('click', async () => { try { await loadBoardProfile(button.dataset.boardRefresh); renderMinimal('board'); } catch (error) { window.alert(error.message); } }));
+  document.querySelectorAll('[data-board-unlink]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.githubProfiles = board.githubProfiles.filter((profile) => profile.username !== button.dataset.boardUnlink); delete boardRepoCache[button.dataset.boardUnlink]; await saveState(state); renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-folder]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = button.dataset.boardFolder; renderMinimal('board'); }));
+  document.querySelector('[data-board-add-folder]')?.addEventListener('click', async () => { const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
+  document.querySelectorAll('[data-board-filter]').forEach((input) => input.addEventListener(input.tagName === 'INPUT' ? 'input' : 'change', () => { boardFilters[input.dataset.boardFilter] = input.value; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-link-repo]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const repo = (boardRepoCache[button.dataset.boardOwner] || []).find((item) => item.name === button.dataset.boardRepo); if (!repo) return; board.projects.unshift({ id: `board-project-${Date.now()}`, title: repo.name, description: repo.description || '', note: '', repoUrl: repo.html_url, ownerUsername: repo.owner?.login || button.dataset.boardOwner, language: repo.language || '', topics: repo.topics || [], folderId: board.folders[0].id, visibility: 'private', memberIds: [], groupNames: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); }));
+  document.querySelector('#board-project-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const board = ensureBoardState(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form)); const title = String(values.title || '').trim(); if (!title) return; const repoUrl = String(values.repoUrl || '').trim(); const memberIds = [...form.querySelectorAll('input[name="memberIds"]:checked')].map((input) => input.value); board.projects.unshift({ id: `board-project-${Date.now()}`, title: title.slice(0, 100), description: '', note: String(values.note || '').trim().slice(0, 500), repoUrl, ownerUsername: currentUser.username, language: String(values.language || '').trim().slice(0, 40), topics: String(values.topics || '').split(',').map((topic) => topic.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 8), folderId: String(values.folderId || board.folders[0].id), visibility: ['members', 'all'].includes(values.visibility) ? values.visibility : 'private', memberIds, groupNames: String(values.groupNames || '').split(',').map((group) => group.trim()).filter(Boolean).slice(0, 5), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); });
+  document.querySelectorAll('[data-board-remove]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.projects = board.projects.filter((project) => project.id !== button.dataset.boardRemove); await saveState(state); renderMinimal('board'); }));
+}
+
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
     document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
+    document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
     document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
     document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
       if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
@@ -574,6 +681,7 @@ function bindMinimalEvents(view, page = 'profile') {
     }));
     minimalGlobalEventsBound = true;
   }
+  if (view === 'board') bindBoardEvents();
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
   document.querySelectorAll('[data-avatar-trigger]').forEach((button) => button.addEventListener('click', () => avatarInput?.click()));
@@ -614,25 +722,33 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   root.dataset.minimalView = view;
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
-    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
+    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-board data-minimal-view-link="board">Board</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
     const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
     const ctaLabel = guestMode ? 'Exit' : 'Log out';
     const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
-    const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button><button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
+    const mobileBoardNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-board>Board</button>';
+    const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
     const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>${menu}</div>${mobileNav}</header>`;
     const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${renderPortfolioPage()}</section>`;
+    const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${guestMode ? '' : boardPage()}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
     const privateSlides = guestMode ? '' : `<section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section>`;
-    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${aboutSlide}${privateSlides}</div></div>`;
+    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${aboutSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
+    if (view === 'board') queueBoardProfileLoads();
+  } else if (view === 'board') {
+    const boardSlide = root.querySelector('[data-minimal-slide="board"]');
+    if (boardSlide) boardSlide.innerHTML = boardPage();
+    bindBoardEvents();
+    queueBoardProfileLoads();
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
   }
   const track = root.querySelector('.minimal-track');
-  if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * 20}%`);
+  if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * (100 / MINIMAL_VIEWS.length)}%`);
   resetMinimalScrollPosition();
   updateMinimalNavigation();
   const activateLandingView = () => {
