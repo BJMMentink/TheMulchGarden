@@ -603,15 +603,16 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   const accountSlide = root.querySelector('[data-minimal-slide="account"]');
   const firstLandingRender = !shell && view === 'landing';
   const previousView = root.dataset.minimalView;
+  const returningToLanding = view === 'landing' && Boolean(shell);
   const waitsForSlide = Boolean(shell && previousView && previousView !== view);
   heroIntroReady = false;
-  heroIntroConsumed = firstLandingRender;
+  heroIntroConsumed = firstLandingRender || returningToLanding;
   heroIntroResetting = false;
   heroIntroInitialFull = firstLandingRender;
   window.clearTimeout(heroIntroResetTimer);
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   root.dataset.minimalView = view;
-  document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender);
+  document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
     const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
     const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
@@ -636,7 +637,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   updateMinimalNavigation();
   const activateLandingView = () => {
     if (root.dataset.minimalView !== view) return;
-    if (view === 'landing' && !firstLandingRender) {
+    if (view === 'landing' && !firstLandingRender && !returningToLanding) {
       heroIntroConsumed = false;
       heroIntroInitialFull = false;
       document.documentElement.classList.remove('is-away-from-top');
