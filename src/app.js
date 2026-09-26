@@ -488,6 +488,31 @@ function boardRepoCard(repo) {
   return `<article class="board-card board-repo-card" data-board-open-repo="${escapeHtml(fullName)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(repo.name)} repository viewer"><div class="board-card-topline"><span class="board-source-pill">GitHub repo</span><span class="board-card-owner">${escapeHtml(repo.owner?.login || repo.boardOwner)}</span></div><div class="board-card-copy"><h3>${escapeHtml(repo.name)}</h3><p>${escapeHtml(repo.description || 'No description yet. Add a note when you pin this project to the board.')}</p></div><div class="board-card-meta"><span>${escapeHtml(repo.language || 'Unspecified')}</span><span>${Number(repo.stargazers_count || 0)} stars</span><span>Updated ${escapeHtml(new Date(repo.updated_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</span></div><div class="board-tag-row">${topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${linked ? `<span class="board-linked-state">Pinned · ${escapeHtml(boardVisibilityLabel(linked))}</span>` : `<button class="button button-quiet" data-board-link-repo data-board-owner="${escapeHtml(repo.owner?.login || repo.boardOwner)}" data-board-repo="${escapeHtml(repo.name)}">Pin to board</button>`}<a class="text-button" href="${escapeHtml(repo.html_url)}" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div></article>`;
 }
 
+function upsertBoardRepoProject(board, repo) {
+  const existing = board.projects.find((project) => project.repoUrl === repo.html_url);
+  const now = new Date().toISOString();
+  const mergedTopics = [...new Set([...(existing?.topics || []), ...(repo.topics || [])])].filter(Boolean).slice(0, 8);
+  const project = {
+    ...(existing || {}),
+    id: existing?.id || `board-project-${Date.now()}`,
+    title: repo.name,
+    description: repo.description || existing?.description || '',
+    repoUrl: repo.html_url,
+    ownerId: existing?.ownerId || currentUser.id,
+    ownerUsername: existing?.ownerUsername || repo.owner?.login || currentUser.username,
+    language: repo.language || existing?.language || '',
+    topics: mergedTopics,
+    folderId: existing?.folderId || board.folders[0].id,
+    visibility: existing?.visibility || 'private',
+    memberIds: Array.isArray(existing?.memberIds) ? existing.memberIds : [],
+    groupNames: Array.isArray(existing?.groupNames) ? existing.groupNames : [],
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+  board.projects = [project, ...board.projects.filter((item) => item.repoUrl !== repo.html_url)];
+  return project;
+}
+
 function boardRepoIdentity(repo) {
   const owner = repo?.owner?.login || repo?.boardOwner || String(repo?.full_name || '').split('/')[0];
   const name = repo?.name || String(repo?.full_name || '').split('/')[1];
@@ -616,8 +641,9 @@ function boardProjectsForUser(board) {
 
 function renderBoardPageLegacy() {
   const board = ensureBoardState();
-  const repos = boardAllRepos(board).filter(boardMatches);
   const allProjects = boardProjectsForUser(board);
+  const pinnedRepoUrls = new Set(allProjects.map((project) => project.repoUrl).filter(Boolean));
+  const repos = boardAllRepos(board).filter((repo) => !pinnedRepoUrls.has(repo.html_url)).filter(boardMatches);
   const projects = allProjects.filter(boardMatches);
   const languages = boardValues(board, 'language');
   const topics = boardValues(board, 'topic');
@@ -992,7 +1018,7 @@ function bindBoardEvents() {
     button.addEventListener('dragend', () => { button.classList.remove('is-dragging', 'is-drag-target'); draggedFolderId = null; });
   });
   document.querySelectorAll('[data-board-filter]').forEach((input) => input.addEventListener(input.tagName === 'INPUT' ? 'input' : 'change', () => { boardFilters[input.dataset.boardFilter] = input.value; renderMinimal('board'); }));
-  document.querySelectorAll('[data-board-link-repo]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const repo = (boardRepoCache[button.dataset.boardOwner] || []).find((item) => item.name === button.dataset.boardRepo); if (!repo) return; board.projects.unshift({ id: `board-project-${Date.now()}`, title: repo.name, description: repo.description || '', note: '', repoUrl: repo.html_url, ownerUsername: repo.owner?.login || button.dataset.boardOwner, language: repo.language || '', topics: repo.topics || [], folderId: board.folders[0].id, visibility: 'private', memberIds: [], groupNames: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-link-repo]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const repo = (boardRepoCache[button.dataset.boardOwner] || []).find((item) => item.name === button.dataset.boardRepo); if (!repo) return; upsertBoardRepoProject(board, repo); await saveState(state); renderMinimal('board'); }));
   document.querySelector('#board-project-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const board = ensureBoardState(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form)); const title = String(values.title || '').trim(); if (!title) return; const repoUrl = String(values.repoUrl || '').trim(); const memberIds = [...form.querySelectorAll('input[name="memberIds"]:checked')].map((input) => input.value); board.projects.unshift({ id: `board-project-${Date.now()}`, title: title.slice(0, 100), description: '', note: String(values.note || '').trim().slice(0, 500), repoUrl, ownerUsername: currentUser.username, language: String(values.language || '').trim().slice(0, 40), topics: String(values.topics || '').split(',').map((topic) => topic.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 8), folderId: String(values.folderId || board.folders[0].id), visibility: ['members', 'all'].includes(values.visibility) ? values.visibility : 'private', memberIds, groupNames: String(values.groupNames || '').split(',').map((group) => group.trim()).filter(Boolean).slice(0, 5), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); });
   document.querySelectorAll('[data-board-remove]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const project = boardProjectsForUser(board).find((item) => item.id === button.dataset.boardRemove); if (!project || (project.ownerId !== currentUser.id && currentUser.role !== 'admin')) return; try { await removeBoardProject(project.id); board.projects = board.projects.filter((item) => item.id !== project.id); boardSharedProjects = boardSharedProjects.filter((item) => item.id !== project.id); await saveState(state); renderMinimal('board'); } catch (error) { window.alert(error.message); } }));
 }
