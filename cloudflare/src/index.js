@@ -157,6 +157,36 @@ async function appState(request, env, user) {
   return json(body);
 }
 
+async function boardProjects(env, user) {
+  const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
+  const projects = [];
+  for (const row of result.results || []) {
+    let stored;
+    try { stored = JSON.parse(row.state_json); } catch { stored = {}; }
+    for (const project of Array.isArray(stored.board?.projects) ? stored.board.projects : []) {
+      const visible = row.ownerId === user.id || project.visibility === 'all' || (Array.isArray(project.memberIds) && project.memberIds.includes(user.id));
+      if (visible) projects.push({ ...project, ownerId: row.ownerId, ownerUsername: project.ownerUsername || row.username });
+    }
+  }
+  projects.sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')));
+  return json({ projects });
+}
+
+async function removeBoardProject(env, user, projectId) {
+  const result = await env.DB.prepare('SELECT users.id AS ownerId, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
+  for (const row of result.results || []) {
+    let stored;
+    try { stored = JSON.parse(row.state_json); } catch { stored = {}; }
+    const projects = Array.isArray(stored.board?.projects) ? stored.board.projects : [];
+    if (!projects.some((project) => project.id === projectId)) continue;
+    if (row.ownerId !== user.id && user.role !== 'admin') throw Object.assign(new Error('You cannot remove another user\'s project.'), { status: 403 });
+    stored.board.projects = projects.filter((project) => project.id !== projectId);
+    await env.DB.prepare('UPDATE user_state SET state_json = ?, updated_at = ? WHERE user_id = ?').bind(JSON.stringify(stored), new Date().toISOString(), row.ownerId).run();
+    return json({ ok: true });
+  }
+  throw Object.assign(new Error('Project not found.'), { status: 404 });
+}
+
 async function chatMessages(request, env, user) {
   if (request.method === 'GET') {
     const result = await env.DB.prepare('SELECT id, user_id AS userId, username, message, created_at AS createdAt FROM chat_messages ORDER BY created_at DESC LIMIT ?').bind(CHAT_MAX_MESSAGES).all();
@@ -229,6 +259,8 @@ async function route(request, env) {
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
+  if (request.method === 'GET' && url.pathname === '/api/board/projects') return boardProjects(env, user);
+  if (request.method === 'DELETE' && url.pathname.startsWith('/api/board/projects/')) return removeBoardProject(env, user, decodeURIComponent(url.pathname.split('/').pop()));
   if (request.method === 'GET' && url.pathname === '/api/wordle/today') return dailyWordle();
   if (url.pathname === '/api/chat/messages' && ['GET', 'POST'].includes(request.method)) return chatMessages(request, env, user);
   if (url.pathname === '/api/admin/users' && ['GET', 'POST'].includes(request.method)) return adminUsers(request, env, user);

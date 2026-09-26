@@ -31,6 +31,32 @@ export class Repository {
   }
   async getState(userId) { const stored = await this.userData.read(`user-${userId}`, createInitialState()); return { ...createInitialState(), ...stored, memories: Array.isArray(stored.memories) ? stored.memories : [] }; }
   async saveState(userId, state) { await this.userData.write(`user-${userId}`, state); return state; }
+  async listBoardProjects(user) {
+    const users = (await this.users.read('users', [])).filter((item) => item.username);
+    const projects = [];
+    for (const owner of users) {
+      const stored = await this.userData.read(`user-${owner.id}`, createInitialState());
+      for (const project of Array.isArray(stored.board?.projects) ? stored.board.projects : []) {
+        const visible = owner.id === user.id || project.visibility === 'all' || (Array.isArray(project.memberIds) && project.memberIds.includes(user.id));
+        if (visible) projects.push({ ...project, ownerId: owner.id, ownerUsername: project.ownerUsername || owner.username });
+      }
+    }
+    return projects.sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')));
+  }
+  async removeBoardProject(projectId, actor) {
+    const users = (await this.users.read('users', [])).filter((item) => item.username);
+    for (const owner of users) {
+      const stored = await this.userData.read(`user-${owner.id}`, createInitialState());
+      const board = stored.board && Array.isArray(stored.board.projects) ? stored.board : null;
+      const project = board?.projects.find((item) => item.id === projectId);
+      if (!project) continue;
+      if (owner.id !== actor.id && actor.role !== 'admin') throw Object.assign(new Error('You cannot remove another user\'s project.'), { status: 403 });
+      board.projects = board.projects.filter((item) => item.id !== projectId);
+      await this.userData.write(`user-${owner.id}`, stored);
+      return { ok: true };
+    }
+    throw Object.assign(new Error('Project not found.'), { status: 404 });
+  }
   async listChatMessages(limit) { return (await this.chat.read('chat', [])).slice(-limit); }
   async createChatMessage({ userId, username, message, maxMessages }) {
     const messages = await this.chat.read('chat', []);

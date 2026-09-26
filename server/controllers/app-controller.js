@@ -1,6 +1,8 @@
 export function createAppController(repository, auth, config) {
   return {
     async getState(user) { return repository.getState(user.id); },
+    async listBoardProjects(user) { return repository.listBoardProjects(user); },
+    async removeBoardProject(user, projectId) { return repository.removeBoardProject(projectId, user); },
     async listMembers() { return repository.listPublicUsers(); },
     async listChatMessages() { return repository.listChatMessages(config.chatMaxMessages); },
     async dailyWordle() {
