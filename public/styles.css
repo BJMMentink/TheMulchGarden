@@ -6,7 +6,7 @@
   --color-surface-raised: #18181e;
   --color-input: #0f0f13;
   --color-text: #f1eef0;
-  --color-text-muted: #b7b0b4;
+  --color-text-muted: #c8adb3;
   --color-border: #2b292f;
   --color-primary: #c13a49;
   --color-primary-dark: #941f2e;
@@ -280,10 +280,10 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .request-empty { display: grid; min-height: 14rem; place-items: center; align-content: center; gap: 0.5rem; border: 1px dashed rgba(255,255,255,0.09); border-radius: 0.9rem; color: var(--color-text-muted); }
 .admin-preview { position: fixed; left: 0.75rem; bottom: 0.75rem; z-index: 120; opacity: 0.34; transition: opacity 160ms ease; }
 .admin-preview:hover, .admin-preview[open], .admin-preview:focus-within { opacity: 1; }
-.admin-preview summary { border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 0.38rem 0.62rem; background: rgba(9,9,11,0.86); color: #b6aaad; font-size: 0.66rem; font-weight: 750; letter-spacing: 0.05em; cursor: pointer; list-style: none; }
+.admin-preview summary { border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 0.38rem 0.62rem; background: rgba(9,9,11,0.86); color: #c6aab0; font-size: 0.66rem; font-weight: 750; letter-spacing: 0.05em; cursor: pointer; list-style: none; }
 .admin-preview summary::-webkit-details-marker { display: none; }
 .admin-preview > div { position: absolute; left: 0; bottom: calc(100% + 0.4rem); display: grid; min-width: 8.5rem; gap: 0.2rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.7rem; padding: 0.45rem; background: rgba(12,12,15,0.97); box-shadow: 0 0.8rem 2rem rgba(0,0,0,0.35); }
-.admin-preview > div span { padding: 0.25rem 0.4rem; color: #8f8588; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.admin-preview > div span { padding: 0.25rem 0.4rem; color: #b7959d; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .admin-preview button { border-radius: 0.45rem; padding: 0.45rem 0.5rem; color: #bdb2b5; font-size: 0.72rem; text-align: left; }
 .admin-preview button:hover, .admin-preview button.is-active { background: rgba(240,174,181,0.1); color: #f0aeb5; }
 .requests-page { box-sizing: border-box; height: 100svh; min-height: 0; overflow: hidden; padding-top: calc(var(--editorial-nav-overlap) + 1.5rem); padding-bottom: 1.5rem; }
@@ -617,7 +617,7 @@ html.is-away-from-top .editorial-nav::before { opacity: 1; }
 .editorial-brand:hover .brand-mark { border-color: rgba(255, 211, 217, 0.82); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0.45rem 1.1rem rgba(112, 25, 44, 0.38); transform: rotate(0deg) translateY(-1px); }
 .editorial-nav nav { position: relative; display: flex; align-items: center; justify-self: center; gap: 0.2rem; padding: 0.22rem; border: 1px solid transparent; border-radius: 0.7rem; background: transparent; transition: background 240ms ease, border-color 240ms ease; }
 html.is-away-from-top .editorial-nav nav { border-color: rgba(255, 255, 255, 0.08); background: rgba(25, 26, 29, 0.65); }
-.editorial-nav nav::before { position: absolute; top: 0.22rem; bottom: 0.22rem; left: var(--nav-indicator-left, 0.22rem); width: var(--nav-indicator-width, 4rem); border-radius: 0.5rem; content: ''; background: #4b4d52; box-shadow: inset 0 1px rgba(255, 255, 255, 0.08); transition: left 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1); }
+.editorial-nav nav::before { position: absolute; top: 0.22rem; bottom: 0.22rem; left: var(--nav-indicator-left, 0.22rem); width: var(--nav-indicator-width, 4rem); border-radius: 0.5rem; content: ''; background: #48232d; box-shadow: inset 0 1px rgba(255, 230, 234, 0.08); transition: left 380ms cubic-bezier(0.22, 1, 0.36, 1), width 380ms cubic-bezier(0.22, 1, 0.36, 1); }
 .editorial-nav-link, .editorial-menu { position: relative; z-index: 1; border-radius: 0.5rem; padding: 0.55rem 0.8rem; color: var(--color-text-muted); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; transition: color 160ms ease; }
 .editorial-nav-link.is-active { color: #fff1f2; }
 .editorial-nav-link:hover, .editorial-nav-link.is-active, .editorial-menu:hover { color: #f0aeb5; }
@@ -641,11 +641,11 @@ html.is-away-from-top .editorial-nav nav { border-color: rgba(255, 255, 255, 0.0
 .editorial-nav-popover { position: absolute; top: calc(100% + 0.7rem); display: grid; min-width: 15rem; gap: 0.2rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.85rem; padding: 0.5rem; background: rgba(12,12,15,0.97); box-shadow: 0 1.2rem 3rem rgba(0,0,0,0.46); animation: nav-popover-in 160ms cubic-bezier(0.22,1,0.36,1); }
 .editorial-workspace-menu .editorial-nav-popover { left: 50%; transform: translateX(-50%); }
 .editorial-account-menu .editorial-nav-popover { right: 0; }
-.editorial-popover-label { padding: 0.45rem 0.55rem 0.35rem; color: #8f8588; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; }
+.editorial-popover-label { padding: 0.45rem 0.55rem 0.35rem; color: #bd99a1; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; }
 .editorial-nav-popover button { display: grid; gap: 0.12rem; border-radius: 0.58rem; padding: 0.65rem 0.7rem; color: #e9dcdf; text-align: left; }
 .editorial-nav-popover button:hover { background: rgba(240,174,181,0.09); color: #f0aeb5; }
 .editorial-nav-popover button strong { font-size: 0.78rem; }
-.editorial-nav-popover button small { color: #93888b; font-size: 0.68rem; font-weight: 500; }
+.editorial-nav-popover button small { color: #c0a5ab; font-size: 0.68rem; font-weight: 500; }
 .editorial-popover-logout { margin-top: 0.25rem; border-top: 1px solid rgba(255,255,255,0.07); color: #d58a93 !important; }
 .editorial-account-trigger { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border: 1px solid rgba(240,174,181,0.35); border-radius: 50%; background: linear-gradient(135deg,#1b0d12,#57202c); color: #fff1f2; font-size: 0.66rem; font-weight: 850; letter-spacing: 0.04em; transition: border-color 160ms ease, transform 160ms ease; }
 .editorial-account-trigger:hover, .editorial-account-trigger.is-active { border-color: #f0aeb5; transform: translateY(-1px); }
