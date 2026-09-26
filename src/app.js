@@ -48,7 +48,7 @@ let boardRepoFilePreview = null;
 let boardRepoViewerNotice = '';
 let boardRepoDetailCache = Object.create(null);
 let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
-let boardNavExpanded = false;
+let boardNavExpanded = true;
 const root = document.querySelector('#app');
 
 function applyPerformanceProfile() {
@@ -1176,7 +1176,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   window.clearTimeout(heroIntroResetTimer);
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   root.dataset.minimalView = view;
-  if (view !== 'board') boardNavExpanded = false;
+  if (view === 'board' && previousView !== 'board') boardNavExpanded = true;
   root.dataset.boardNavExpanded = view === 'board' ? String(boardNavExpanded) : 'false';
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
