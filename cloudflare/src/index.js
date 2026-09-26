@@ -313,6 +313,26 @@ async function adminUsers(request, env, user) {
   return json({ user: publicUser({ id, username, role }) }, 201);
 }
 
+async function supportRequests(request, env, user, requestId = '') {
+  const rows = (await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all()).results || [];
+  const parsed = rows.map((row) => { let stored; try { stored = JSON.parse(row.state_json); } catch { stored = initialState(); } stored.feedback = Array.isArray(stored.feedback) ? stored.feedback : []; return { row, stored }; });
+  if (request.method === 'GET') {
+    const requests = parsed.filter((item) => user.role === 'admin' || item.row.ownerId === user.id).flatMap((item) => item.stored.feedback.map((entry) => ({ ...entry, ownerId: item.row.ownerId, ownerUsername: entry.ownerUsername || item.row.username }))).sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+    return json({ requests });
+  }
+  const body = await readJson(request); const now = new Date().toISOString();
+  if (request.method === 'POST') {
+    const kind = body.kind === 'bug' ? 'bug' : 'feature'; const title = String(body.title || '').trim(); const description = String(body.description || '').trim();
+    if (!title || !description) throw new Error('A title and description are required.');
+    const own = parsed.find((item) => item.row.ownerId === user.id); if (!own) throw new Error('Account state is unavailable.');
+    const created = { id: userId(), kind, title: title.slice(0, 120), description: description.slice(0, 2000), projectId: String(body.projectId || '').slice(0, 120), projectName: String(body.projectName || '').slice(0, 120), bugType: kind === 'bug' ? String(body.bugType || 'other').slice(0, 60) : '', screenshotDataUrl: kind === 'bug' && /^data:image\/(?:png|jpeg|webp);base64,/.test(String(body.screenshotDataUrl || '')) ? String(body.screenshotDataUrl).slice(0, 500000) : '', status: 'new', ownerId: user.id, ownerUsername: user.username, createdAt: now, updatedAt: now };
+    own.stored.feedback.unshift(created); await env.DB.prepare('UPDATE user_state SET state_json = ?, updated_at = ? WHERE user_id = ?').bind(JSON.stringify(own.stored), now, user.id).run(); return json({ request: created }, 201);
+  }
+  requireAdmin(user); const status = ['new', 'reviewing', 'planned', 'resolved', 'closed'].includes(body.status) ? body.status : '';
+  for (const item of parsed) { const entry = item.stored.feedback.find((candidate) => candidate.id === requestId); if (!entry) continue; if (status) entry.status = status; entry.updatedAt = now; await env.DB.prepare('UPDATE user_state SET state_json = ?, updated_at = ? WHERE user_id = ?').bind(JSON.stringify(item.stored), now, item.row.ownerId).run(); return json({ request: { ...entry, ownerUsername: entry.ownerUsername || item.row.username } }); }
+  throw Object.assign(new Error('Request not found.'), { status: 404 });
+}
+
 async function route(request, env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/')) return new Response('The Mulch Garden API', { status: 200 });
@@ -331,6 +351,8 @@ async function route(request, env) {
   if (request.method === 'GET' && url.pathname === '/api/board/projects') return boardProjects(env, user);
   if (request.method === 'GET' && url.pathname === '/api/board/social') return boardSocial(env, user);
   if (request.method === 'POST' && url.pathname === '/api/board/social') return boardSocialAction(request, env, user);
+  if (url.pathname === '/api/requests' && ['GET', 'POST'].includes(request.method)) return supportRequests(request, env, user);
+  if (request.method === 'PATCH' && url.pathname.startsWith('/api/requests/')) return supportRequests(request, env, user, decodeURIComponent(url.pathname.split('/').pop()));
   if (request.method === 'DELETE' && url.pathname.startsWith('/api/board/projects/')) return removeBoardProject(env, user, decodeURIComponent(url.pathname.split('/').pop()));
   if (request.method === 'GET' && url.pathname === '/api/wordle/today') return dailyWordle();
   if (url.pathname === '/api/chat/messages' && ['GET', 'POST'].includes(request.method)) return chatMessages(request, env, user);

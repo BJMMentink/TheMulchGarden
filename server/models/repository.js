@@ -111,6 +111,30 @@ export class Repository {
     }
     throw new Error('Unknown board action.');
   }
+  async listSupportRequests(user) {
+    const users = (await this.users.read('users', [])).filter((item) => item.username);
+    const requests = [];
+    for (const owner of users) {
+      if (user.role !== 'admin' && owner.id !== user.id) continue;
+      const stored = await this.userData.read(`user-${owner.id}`, createInitialState());
+      for (const item of Array.isArray(stored.feedback) ? stored.feedback : []) requests.push({ ...item, ownerId: owner.id, ownerUsername: item.ownerUsername || owner.username });
+    }
+    return requests.sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+  }
+  async createSupportRequest(user, body) {
+    const kind = body.kind === 'bug' ? 'bug' : 'feature';
+    const title = String(body.title || '').trim(); const description = String(body.description || '').trim();
+    if (!title || !description) throw new Error('A title and description are required.');
+    const stored = await this.userData.read(`user-${user.id}`, createInitialState()); stored.feedback = Array.isArray(stored.feedback) ? stored.feedback : [];
+    const created = { id: randomUUID(), kind, title: title.slice(0, 120), description: description.slice(0, 2000), projectId: String(body.projectId || '').slice(0, 120), projectName: String(body.projectName || '').slice(0, 120), bugType: kind === 'bug' ? String(body.bugType || 'other').slice(0, 60) : '', screenshotDataUrl: kind === 'bug' && /^data:image\/(?:png|jpeg|webp);base64,/.test(String(body.screenshotDataUrl || '')) ? String(body.screenshotDataUrl).slice(0, 500000) : '', status: 'new', ownerId: user.id, ownerUsername: user.username, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    stored.feedback.unshift(created); await this.userData.write(`user-${user.id}`, stored); return created;
+  }
+  async updateSupportRequest(user, requestId, body) {
+    if (user.role !== 'admin') throw Object.assign(new Error('Administrator access required.'), { status: 403 });
+    const users = (await this.users.read('users', [])).filter((item) => item.username);
+    for (const owner of users) { const stored = await this.userData.read(`user-${owner.id}`, createInitialState()); const item = (stored.feedback || []).find((entry) => entry.id === requestId); if (!item) continue; item.status = ['new', 'reviewing', 'planned', 'resolved', 'closed'].includes(body.status) ? body.status : item.status; item.updatedAt = new Date().toISOString(); await this.userData.write(`user-${owner.id}`, stored); return { ...item, ownerUsername: item.ownerUsername || owner.username }; }
+    throw Object.assign(new Error('Request not found.'), { status: 404 });
+  }
   async removeBoardProject(projectId, actor) {
     const users = (await this.users.read('users', [])).filter((item) => item.username);
     for (const owner of users) {

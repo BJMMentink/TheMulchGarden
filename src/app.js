@@ -5,7 +5,7 @@ import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer,
 import { createWordleState, getDailyAnswer, getWordleDate, resetWordleForDate, submitWordleGuess } from './wordle.js';
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { boardSocialAction, getCurrentUser, loadBoardProjects, loadBoardSocial, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount } from './storage.js';
+import { boardSocialAction, createSupportRequest, getCurrentUser, loadBoardProjects, loadBoardSocial, loadChatMessages, loadDailyWordle, loadMembers, loadState, loadSupportRequests, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount, updateSupportRequest } from './storage.js';
 
 let state;
 let currentUser;
@@ -49,6 +49,9 @@ let boardRepoViewerNotice = '';
 let boardRepoDetailCache = Object.create(null);
 let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
 let boardNavExpanded = true;
+let supportRequests = [];
+let supportRequestKind = 'feature';
+let supportRequestMessage = '';
 const root = document.querySelector('#app');
 
 function applyPerformanceProfile() {
@@ -812,6 +815,26 @@ function accountPage(page = 'profile', message = '') {
   return `<section class="account-layout"><aside class="account-sidebar"><div><span class="eyebrow">Account</span><strong>${escapeHtml(profile.displayName || currentUser.username)}</strong></div><nav aria-label="Account pages"><button class="account-link ${page === 'profile' ? 'is-active' : ''}" data-account-page="profile">Your Profile</button><button class="account-link ${page === 'board' ? 'is-active' : ''}" data-account-page="board">Board setup</button><button class="account-link ${page === 'security' ? 'is-active' : ''}" data-account-page="security">Sign-in & security</button></nav></aside><div class="account-main">${page === 'security' ? securitySettings(message) : page === 'board' ? `${boardGithubSettings()}${boardSettingsPage()}` : profilePage(message)}</div></section>`;
 }
 
+function supportProjectOptions() {
+  const projects = [...(state?.projects || []).map((project) => ({ id: project.id, name: project.name })), ...boardSharedProjects.map((project) => ({ id: project.id, name: project.title }))];
+  return [...new Map(projects.filter((project) => project.name).map((project) => [project.id, project])).values()].map((project) => `<option value="${escapeHtml(project.id)}" data-project-name="${escapeHtml(project.name)}">${escapeHtml(project.name)}</option>`).join('');
+}
+
+function supportRequestCard(item) {
+  const statusOptions = ['new', 'reviewing', 'planned', 'resolved', 'closed'].map((status) => `<option value="${status}" ${item.status === status ? 'selected' : ''}>${status[0].toLocaleUpperCase()}${status.slice(1)}</option>`).join('');
+  return `<article class="request-card"><div class="request-card-top"><span class="request-kind ${item.kind}">${item.kind === 'bug' ? 'Bug report' : 'Feature request'}</span><span>${escapeHtml(new Date(item.createdAt).toLocaleDateString())}</span></div><h3>${escapeHtml(item.title)}</h3>${item.projectName ? `<p class="request-project">${escapeHtml(item.projectName)}${item.bugType ? ` · ${escapeHtml(item.bugType)}` : ''}</p>` : ''}<p>${escapeHtml(item.description)}</p>${item.screenshotDataUrl ? `<a class="request-screenshot" href="${escapeHtml(item.screenshotDataUrl)}" target="_blank" rel="noreferrer"><img src="${escapeHtml(item.screenshotDataUrl)}" alt="Screenshot attached to ${escapeHtml(item.title)}"><span>Open screenshot ↗</span></a>` : ''}<footer><span>From ${escapeHtml(item.ownerUsername || currentUser.username)}</span>${currentUser.role === 'admin' ? `<label>Status<select data-request-status="${escapeHtml(item.id)}">${statusOptions}</select></label>` : `<span class="request-status">${escapeHtml(item.status || 'new')}</span>`}</footer></article>`;
+}
+
+function requestsPage() {
+  const isBug = supportRequestKind === 'bug';
+  const queue = supportRequests.map(supportRequestCard).join('');
+  return `<main class="requests-page"><header class="requests-heading"><div><span class="editorial-kicker">Member requests</span><h2>${currentUser.role === 'admin' ? 'Listen, sort, and ship.' : 'Help shape what comes next.'}</h2><p>${currentUser.role === 'admin' ? 'Feature ideas and bug reports from signed-in members.' : 'Send a focused idea or report a problem directly to the builder.'}</p></div><div class="request-kind-switch" role="tablist" aria-label="Request type"><button type="button" class="${!isBug ? 'is-active' : ''}" data-request-kind="feature">Feature request</button><button type="button" class="${isBug ? 'is-active' : ''}" data-request-kind="bug">Bug report</button></div></header><section class="requests-layout"><form id="support-request-form" class="request-form card">${supportRequestMessage ? `<p class="form-success">${escapeHtml(supportRequestMessage)}</p>` : ''}<input type="hidden" name="kind" value="${isBug ? 'bug' : 'feature'}">${isBug ? `<label>Mod or game<select name="projectId" required><option value="">Choose a project</option>${supportProjectOptions()}</select></label><label>Type of bug<select name="bugType" required><option value="gameplay">Gameplay</option><option value="visual">Visual / UI</option><option value="performance">Performance</option><option value="crash">Crash or blocker</option><option value="compatibility">Compatibility</option><option value="other">Other</option></select></label><label>Short title<input name="title" required maxlength="120" placeholder="What went wrong?"></label><label>Description<textarea name="description" required maxlength="2000" placeholder="What happened, what did you expect, and can you repeat it?"></textarea></label><label class="request-upload">Screenshot <span class="field-note">optional · PNG, JPG, or WebP</span><input name="screenshot" type="file" accept="image/png,image/jpeg,image/webp"><span data-request-file-name>No screenshot selected</span></label>` : `<label>Idea title<input name="title" required maxlength="120" placeholder="A new mod idea, feature, or improvement"></label><label>What would you like to see?<textarea name="description" required maxlength="2000" placeholder="Describe the idea and why it would be useful or fun."></textarea></label>`}<button class="button" type="submit">Submit ${isBug ? 'bug report' : 'feature request'}</button></form><aside class="request-queue"><div class="request-queue-heading"><div><span class="editorial-kicker">${currentUser.role === 'admin' ? 'Review queue' : 'Your submissions'}</span><h3>${supportRequests.length} ${supportRequests.length === 1 ? 'item' : 'items'}</h3></div><button type="button" class="text-button" data-request-refresh>Refresh</button></div><div class="request-list">${queue || '<div class="request-empty"><span>✦</span><p>Nothing has been submitted yet.</p></div>'}</div></aside></section></main>`;
+}
+
+function resizeSupportScreenshot(file) {
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('That screenshot could not be read.')); reader.onload = () => { const image = new Image(); image.onerror = () => reject(new Error('That screenshot could not be loaded.')); image.onload = () => { const max = 1000; const scale = Math.min(1, max / Math.max(image.width, image.height)); const canvas = document.createElement('canvas'); canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale); canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); const dataUrl = [0.72, 0.55, 0.4, 0.3].map((quality) => canvas.toDataURL('image/jpeg', quality)).find((candidate) => candidate.length <= 80000); if (!dataUrl) reject(new Error('Please choose a smaller screenshot.')); else resolve(dataUrl); }; image.src = reader.result; }; reader.readAsDataURL(file); });
+}
+
 function ensureProfile() {
   state.profile = { displayName: state.profile?.displayName || '', bio: state.profile?.bio || '', location: state.profile?.location || '', avatarDataUrl: state.profile?.avatarDataUrl || '' };
   return state.profile;
@@ -834,7 +857,7 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
-const MINIMAL_VIEWS = ['landing', 'portfolio', 'board', 'about', 'account', 'signal'];
+const MINIMAL_VIEWS = ['landing', 'portfolio', 'board', 'requests', 'about', 'account', 'signal'];
 const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
 const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
 let minimalGlobalEventsBound = false;
@@ -927,6 +950,7 @@ async function queueBoardSharedProjects() {
     if (JSON.stringify(next) === JSON.stringify(boardSharedProjects)) return;
     boardSharedProjects = Array.isArray(next) ? next : [];
     if (root.dataset.minimalView === 'board') renderMinimal('board');
+    else if (root.dataset.minimalView === 'requests') renderMinimal('requests');
   } catch {
     // Older local servers can omit the optional shared-board endpoint.
   }
@@ -1089,6 +1113,7 @@ function bindMinimalEvents(view, page = 'profile') {
     document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
     document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
+    document.querySelectorAll('[data-minimal-requests]').forEach((button) => button.addEventListener('click', () => renderMinimal('requests')));
     document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
     document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
       if (root.dataset.minimalView === 'board' && button.classList.contains('editorial-brand')) {
@@ -1137,6 +1162,7 @@ function bindMinimalEvents(view, page = 'profile') {
     minimalGlobalEventsBound = true;
   }
   if (view === 'board') { if (boardMode === 'feed') bindBoardSocialEvents(); else if (boardMode === 'ideas') bindBoardIdeaEvents(); else bindBoardEvents(); }
+  if (view === 'requests') bindSupportRequestEvents();
   if (view === 'account' && page === 'board') bindBoardGithubEvents();
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
@@ -1151,6 +1177,19 @@ function bindMinimalEvents(view, page = 'profile') {
   document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
   const revealObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('is-visible'); }), { threshold: 0.16 }) : null;
   document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver ? revealObserver.observe(element) : element.classList.add('is-visible'));
+}
+
+async function refreshSupportRequests() {
+  supportRequests = await loadSupportRequests();
+  if (root.dataset.minimalView === 'requests') renderMinimal('requests');
+}
+
+function bindSupportRequestEvents() {
+  document.querySelectorAll('[data-request-kind]').forEach((button) => button.addEventListener('click', () => { supportRequestKind = button.dataset.requestKind; supportRequestMessage = ''; renderMinimal('requests'); }));
+  document.querySelector('[data-request-refresh]')?.addEventListener('click', () => refreshSupportRequests().catch((error) => window.alert(error.message)));
+  document.querySelector('#support-request-form input[name="screenshot"]')?.addEventListener('change', (event) => { const label = document.querySelector('[data-request-file-name]'); if (label) label.textContent = event.target.files?.[0]?.name || 'No screenshot selected'; });
+  document.querySelector('#support-request-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; const values = new FormData(form); const projectSelect = form.elements.projectId; const payload = { kind: values.get('kind'), title: values.get('title'), description: values.get('description'), projectId: values.get('projectId') || '', projectName: projectSelect?.selectedOptions?.[0]?.dataset.projectName || '', bugType: values.get('bugType') || '' }; const file = values.get('screenshot'); try { if (file?.size) payload.screenshotDataUrl = await resizeSupportScreenshot(file); await createSupportRequest(payload); supportRequestMessage = 'Thank you—your request has been saved.'; await refreshSupportRequests(); } catch (error) { window.alert(error.message); } });
+  document.querySelectorAll('[data-request-status]').forEach((select) => select.addEventListener('change', async () => { try { await updateSupportRequest(select.dataset.requestStatus, { status: select.value }); await refreshSupportRequests(); } catch (error) { window.alert(error.message); } }));
 }
 
 function renderMinimal(view = rememberedMinimalView(), message = '', page = rememberedMinimalAccountPage()) {
@@ -1180,10 +1219,10 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   root.dataset.boardNavExpanded = view === 'board' ? String(boardNavExpanded) : 'false';
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
-    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-board data-minimal-view-link="board">Board</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
+    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-board data-minimal-view-link="board">Board</button><button class="editorial-nav-link" data-minimal-requests data-minimal-view-link="requests">Requests</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
     const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
     const ctaLabel = guestMode ? 'Exit' : 'Log out';
-    const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
+    const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
     const mobileBoardNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-board>Board</button>';
     const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
     const brandLabel = view === 'board' ? 'Toggle Board navigation' : 'The Mulch Garden home';
@@ -1191,8 +1230,9 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${renderPortfolioPage()}</section>`;
     const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${guestMode ? '' : boardPage()}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
+    const requestsSlide = `<section class="minimal-slide" data-minimal-slide="requests">${guestMode ? '' : requestsPage()}</section>`;
     const privateSlides = guestMode ? '' : `<section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section>`;
-    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${aboutSlide}${privateSlides}</div></div>`;
+    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${requestsSlide}${aboutSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
     if (view === 'board') { queueBoardSocial(); if (boardMode === 'library') { queueBoardProfileLoads(); queueBoardSharedProjects(); } }
@@ -1202,6 +1242,10 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     if (boardMode === 'feed') { bindBoardSocialEvents(); queueBoardSocial(); }
     else if (boardMode === 'ideas') { bindBoardIdeaEvents(); queueBoardSocial(); }
     else { bindBoardEvents(); queueBoardProfileLoads(); queueBoardSharedProjects(); }
+  } else if (view === 'requests') {
+    const requestsSlide = root.querySelector('[data-minimal-slide="requests"]');
+    if (requestsSlide) requestsSlide.innerHTML = requestsPage();
+    bindSupportRequestEvents();
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;
@@ -1231,6 +1275,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   };
   if (waitsForSlide && track) track.addEventListener('transitionend', finishViewTransition, { once: true });
   else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
+  if (view === 'requests') { queueBoardSharedProjects(); loadSupportRequests().then((items) => { if (JSON.stringify(items) !== JSON.stringify(supportRequests)) { supportRequests = items; if (root.dataset.minimalView === 'requests') renderMinimal('requests'); } }).catch(() => {}); }
 }
 
 function renderAuth(message = '', loginOpen = false) {
