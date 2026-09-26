@@ -613,7 +613,7 @@ function resetMinimalScrollPosition() {
 async function loadBoardProfile(username) {
   const response = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
   if (!response.ok) throw new Error(response.status === 404 ? 'That public GitHub profile could not be found.' : 'GitHub did not return public repositories right now.');
-  boardRepoCache[username] = (await response.json()).filter((repo) => !repo.fork).map((repo) => ({ ...repo, topics: Array.isArray(repo.topics) ? repo.topics : [] }));
+  boardRepoCache[username] = (await response.json()).map((repo) => ({ ...repo, topics: Array.isArray(repo.topics) ? repo.topics : [] }));
 }
 
 function queueBoardProfileLoads() {
