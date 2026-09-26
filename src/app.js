@@ -53,7 +53,29 @@ let supportRequests = [];
 let supportRequestKind = 'feature';
 let supportFeatureScope = 'new';
 let supportRequestMessage = '';
+let adminSessionUser = null;
+let adminPreviewMode = 'admin';
 const root = document.querySelector('#app');
+
+function adminPreviewControl() {
+  if (!adminSessionUser) return '';
+  const labels = { admin: 'Admin', member: 'Member', guest: 'Guest' };
+  return `<details class="admin-preview"><summary>View: ${labels[adminPreviewMode]}</summary><div><span>Preview as</span>${Object.entries(labels).map(([mode, label]) => `<button type="button" class="${adminPreviewMode === mode ? 'is-active' : ''}" data-admin-preview="${mode}">${label}</button>`).join('')}</div></details>`;
+}
+
+function switchAdminPreview(mode) {
+  if (!adminSessionUser || !['admin', 'member', 'guest'].includes(mode)) return;
+  const currentView = root.dataset.minimalView || 'landing';
+  const blockedForGuest = !['landing', 'portfolio', 'about'].includes(currentView);
+  const blockedForMember = currentView === 'board' && boardMode === 'requests';
+  adminPreviewMode = mode;
+  guestMode = mode === 'guest';
+  currentUser = { ...adminSessionUser, role: mode === 'admin' ? 'admin' : 'user' };
+  if (mode !== 'admin' && boardMode === 'requests') boardMode = 'feed';
+  minimalGlobalEventsBound = false;
+  root.innerHTML = '';
+  renderMinimal((mode === 'guest' && blockedForGuest) || (mode === 'member' && blockedForMember) ? 'landing' : currentView);
+}
 
 function applyPerformanceProfile() {
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -1119,6 +1141,7 @@ function bindBoardRepoFileEvents() {
 
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
+    document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
     document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
@@ -1140,6 +1163,7 @@ function bindMinimalEvents(view, page = 'profile') {
       renderMinimal('landing');
     }));
     document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => {
+      if (adminSessionUser && adminPreviewMode === 'guest') { switchAdminPreview('admin'); return; }
       if (guestMode) {
         guestMode = false;
         const url = new URL(window.location.href);
@@ -1150,6 +1174,8 @@ function bindMinimalEvents(view, page = 'profile') {
       }
       await logout();
       currentUser = null;
+      adminSessionUser = null;
+      adminPreviewMode = 'admin';
       state = null;
       renderAuth();
     }));
@@ -1183,7 +1209,7 @@ function bindMinimalEvents(view, page = 'profile') {
   avatarDropzone?.addEventListener('dragleave', () => avatarDropzone.classList.remove('is-dragging'));
   avatarDropzone?.addEventListener('drop', (event) => { event.preventDefault(); avatarDropzone.classList.remove('is-dragging'); const file = event.dataTransfer.files?.[0]; if (!file || !avatarInput) return; try { const transfer = new DataTransfer(); transfer.items.add(file); avatarInput.files = transfer.files; previewAvatar(file); } catch { window.alert('Please use the Upload photo button for this browser.'); } });
   document.querySelector('[data-avatar-remove]')?.addEventListener('click', () => { ensureProfile().avatarDataUrl = ''; if (avatarInput) avatarInput.value = ''; const avatar = document.querySelector('.profile-avatar'); if (avatar) avatar.innerHTML = `<span>${escapeHtml(profileInitials())}</span>`; });
-  document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { currentUser = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); renderMinimal('account', 'Saved.', 'security'); } catch (error) { renderMinimal('account', error.message, 'security'); } });
+  document.querySelector('#minimal-account-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const updated = await updateAccount(Object.fromEntries(new FormData(event.currentTarget))); if (adminSessionUser) { adminSessionUser = { ...updated }; currentUser = { ...updated, role: adminPreviewMode === 'admin' ? 'admin' : 'user' }; } else currentUser = updated; renderMinimal('account', 'Saved.', 'security'); } catch (error) { renderMinimal('account', error.message, 'security'); } });
   document.querySelector('#profile-form')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const values = new FormData(event.currentTarget); const file = values.get('avatar'); let avatarDataUrl = state.profile.avatarDataUrl; if (file?.size) avatarDataUrl = await resizeAvatar(file); state.profile = { displayName: String(values.get('displayName') || '').trim(), bio: String(values.get('bio') || '').trim(), location: String(values.get('location') || '').trim(), avatarDataUrl }; await saveState(state); renderMinimal('account', 'Profile saved.', 'profile'); } catch (error) { renderMinimal('account', error.message, 'profile'); } });
   const revealObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('is-visible'); }), { threshold: 0.16 }) : null;
   document.querySelectorAll('[data-reveal]').forEach((element) => revealObserver ? revealObserver.observe(element) : element.classList.add('is-visible'));
@@ -1255,7 +1281,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
     const requestsSlide = `<section class="minimal-slide" data-minimal-slide="requests">${guestMode ? '' : requestsPage()}</section>`;
     const privateSlides = guestMode ? '' : `<section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section>`;
-    root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${requestsSlide}${aboutSlide}${privateSlides}</div></div>`;
+    root.innerHTML = `${header}${adminPreviewControl()}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${requestsSlide}${aboutSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
     if (view === 'board') { queueBoardSocial(); if (boardMode === 'library') { queueBoardProfileLoads(); queueBoardSharedProjects(); } else if (boardMode === 'requests') refreshSupportRequests().catch(() => {}); }
@@ -1317,7 +1343,7 @@ function renderAuth(message = '', loginOpen = false) {
   document.querySelector('[data-action="open-login"]').addEventListener('click', () => { renderAuth('', true); document.querySelector('#auth-form input[name="username"]')?.focus(); });
   document.querySelector('[data-action="guest"]').addEventListener('click', () => { guestMode = true; currentUser = null; state = null; renderMinimal('landing'); });
   document.addEventListener('keydown', authKeyHandler);
-  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); guestMode = false; state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message, true); } });
+  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); adminSessionUser = currentUser.role === 'admin' ? { ...currentUser } : null; adminPreviewMode = 'admin'; guestMode = false; state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message, true); } });
 }
 
 function renderAccountSettings(message = '') {
@@ -1328,7 +1354,7 @@ function renderAccountSettings(message = '') {
 }
 
 async function init() {
-  try { applyPerformanceProfile(); bindScrollIndicator(); bindHeroIntroGesture(); const requestedView = new URLSearchParams(window.location.search).get('view'); currentUser = await getCurrentUser(); if (!currentUser) { if (['portfolio', 'about'].includes(requestedView)) { guestMode = true; renderMinimal(requestedView); return; } renderAuth(); return; } guestMode = false; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(MINIMAL_VIEWS.includes(requestedView) ? requestedView : undefined); startChatPolling(); }
+  try { applyPerformanceProfile(); bindScrollIndicator(); bindHeroIntroGesture(); const requestedView = new URLSearchParams(window.location.search).get('view'); currentUser = await getCurrentUser(); if (!currentUser) { if (['portfolio', 'about'].includes(requestedView)) { guestMode = true; renderMinimal(requestedView); return; } renderAuth(); return; } adminSessionUser = currentUser.role === 'admin' ? { ...currentUser } : null; adminPreviewMode = 'admin'; guestMode = false; members = await loadMembers().catch(() => [{ id: currentUser.id, username: currentUser.username }]); chatMessages = (await loadChatMessages().catch(() => [])).slice(-APP_CONFIG.chatMaxMessages); dailyWordle = await loadDailyWordle().catch(() => dailyWordle); chatUnreadCount = 0; state = await loadState(); state = { ...state, interests: Array.isArray(state.interests) ? state.interests : [], projects: Array.isArray(state.projects) ? state.projects : [], memories: Array.isArray(state.memories) ? state.memories : [], feedback: Array.isArray(state.feedback) ? state.feedback : [], games: state.games && state.games.getToKnowMe ? { ...state.games, wordle: resetWordleForDate(state.games.wordle, dailyWordle.date) } : { getToKnowMe: createGetToKnowMeState(), wordle: createWordleState(dailyWordle.date) } }; const legacyTodos = state.projects.flatMap((project) => (Array.isArray(project.todos) ? project.todos.map((todo) => normalizeTodo(todo, project.id)) : [])); state.todos = Array.isArray(state.todos) && state.todos.length ? state.todos.map((todo) => normalizeTodo(todo)) : legacyTodos; renderMinimal(MINIMAL_VIEWS.includes(requestedView) ? requestedView : undefined); startChatPolling(); }
   catch (error) { renderAuth(error.message); }
 }
 
