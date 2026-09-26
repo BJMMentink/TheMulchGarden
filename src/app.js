@@ -36,6 +36,7 @@ let heroTouchStartY;
 let boardRepoCache = Object.create(null);
 let boardSharedProjects = [];
 let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
+let boardNavExpanded = false;
 const root = document.querySelector('#app');
 
 function applyPerformanceProfile() {
@@ -597,6 +598,10 @@ function updateMinimalViewportHeight() {
   const viewport = root.querySelector('.minimal-viewport');
   const view = root.dataset.minimalView || 'landing';
   const activeSlide = root.querySelector(`[data-minimal-slide="${view}"]`);
+  if (view === 'board') {
+    viewport?.style.removeProperty('height');
+    return;
+  }
   if (viewport && activeSlide) viewport.style.height = `${activeSlide.scrollHeight}px`;
 }
 
@@ -663,6 +668,13 @@ function bindMinimalEvents(view, page = 'profile') {
     document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
     document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
     document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
+      if (root.dataset.minimalView === 'board' && button.classList.contains('editorial-brand')) {
+        boardNavExpanded = !boardNavExpanded;
+        root.dataset.boardNavExpanded = String(boardNavExpanded);
+        button.setAttribute('aria-expanded', String(boardNavExpanded));
+        button.setAttribute('aria-label', boardNavExpanded ? 'Collapse Board navigation' : 'Expand Board navigation');
+        return;
+      }
       if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
         document.querySelector('[data-menu-toggle]')?.click();
         return;
@@ -740,6 +752,8 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   window.clearTimeout(heroIntroResetTimer);
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   root.dataset.minimalView = view;
+  if (view !== 'board') boardNavExpanded = false;
+  root.dataset.boardNavExpanded = view === 'board' ? String(boardNavExpanded) : 'false';
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
     const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-board data-minimal-view-link="board">Board</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
@@ -748,7 +762,8 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
     const mobileBoardNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-board>Board</button>';
     const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
-    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>${menu}</div>${mobileNav}</header>`;
+    const brandLabel = view === 'board' ? 'Toggle Board navigation' : 'The Mulch Garden home';
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home aria-label="${brandLabel}"${view === 'board' ? ` aria-expanded="${boardNavExpanded}"` : ''}><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>${menu}</div>${mobileNav}</header>`;
     const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${renderPortfolioPage()}</section>`;
     const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${guestMode ? '' : boardPage()}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
