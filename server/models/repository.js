@@ -48,6 +48,7 @@ export class Repository {
     const groups = [];
     const posts = [];
     const replies = [];
+    const ideas = [];
     for (const owner of users) {
       const stored = await this.userData.read(`user-${owner.id}`, createInitialState());
       const board = stored.board || {};
@@ -61,15 +62,16 @@ export class Repository {
       }
       for (const post of Array.isArray(board.posts) ? board.posts : []) posts.push({ ...post, ownerId: owner.id, ownerUsername: post.ownerUsername || owner.username });
       for (const reply of Array.isArray(board.replies) ? board.replies : []) replies.push({ ...reply, ownerId: owner.id, ownerUsername: reply.ownerUsername || owner.username });
+      for (const idea of Array.isArray(board.ideas) ? board.ideas : []) ideas.push({ ...idea, ownerId: owner.id, ownerUsername: idea.ownerUsername || owner.username });
     }
     const visibleGroupIds = new Set(groups.filter((group) => group.isMember).map((group) => group.id));
-    return { groups: groups.sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''))), posts: posts.filter((post) => visibleGroupIds.has(post.groupId)).sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))), replies: replies.filter((reply) => visibleGroupIds.has(reply.groupId)).sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || ''))) };
+    return { groups: groups.sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''))), posts: posts.filter((post) => visibleGroupIds.has(post.groupId)).sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))), replies: replies.filter((reply) => visibleGroupIds.has(reply.groupId)).sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || ''))), ideas: ideas.filter((idea) => !idea.archivedAt && (idea.ownerId === user.id || visibleGroupIds.has(idea.groupId))).sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || ''))) };
   }
   async boardSocialAction(user, body) {
     const action = String(body?.action || '');
     const users = (await this.users.read('users', [])).filter((item) => item.username);
     const now = new Date().toISOString();
-    const readBoard = async (owner) => { const stored = await this.userData.read(`user-${owner.id}`, createInitialState()); stored.board = stored.board || {}; stored.board.groups = Array.isArray(stored.board.groups) ? stored.board.groups : []; stored.board.posts = Array.isArray(stored.board.posts) ? stored.board.posts : []; stored.board.replies = Array.isArray(stored.board.replies) ? stored.board.replies : []; return stored; };
+    const readBoard = async (owner) => { const stored = await this.userData.read(`user-${owner.id}`, createInitialState()); stored.board = stored.board || {}; stored.board.groups = Array.isArray(stored.board.groups) ? stored.board.groups : []; stored.board.posts = Array.isArray(stored.board.posts) ? stored.board.posts : []; stored.board.replies = Array.isArray(stored.board.replies) ? stored.board.replies : []; stored.board.ideas = Array.isArray(stored.board.ideas) ? stored.board.ideas : []; return stored; };
     const findGroup = async (groupId) => { for (const owner of users) { const stored = await readBoard(owner); const group = stored.board.groups.find((item) => item.id === groupId); if (group) return { owner, stored, group }; } return null; };
     if (action === 'create-group') {
       const name = String(body.name || '').trim(); if (!name) throw new Error('Group name is required.');
@@ -97,6 +99,15 @@ export class Repository {
       const postId = String(body.postId || ''); let postFound = null; for (const owner of users) { const stored = await readBoard(owner); const post = stored.board.posts.find((item) => item.id === postId); if (post) { postFound = { owner, post }; break; } } if (!postFound) throw Object.assign(new Error('Post not found.'), { status: 404 });
       const group = await findGroup(postFound.post.groupId); if (!group || !(group.owner.id === user.id || group.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before replying.'), { status: 403 });
       const text = String(body.body || '').trim(); if (!text) throw new Error('Reply text is required.'); const stored = await readBoard(user); stored.board.replies.push({ id: randomUUID(), postId, groupId: group.group.id, body: text.slice(0, 1000), ownerId: user.id, ownerUsername: user.username, createdAt: now }); await this.userData.write(`user-${user.id}`, stored); return { ok: true };
+    }
+    if (action === 'create-idea') {
+      const title = String(body.title || '').trim(); if (!title) throw new Error('Idea title is required.');
+      const groupId = String(body.groupId || ''); if (groupId) { const found = await findGroup(groupId); if (!found || !(found.owner.id === user.id || found.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before adding an idea.'), { status: 403 }); }
+      const stored = await readBoard(user); const ideaId = randomUUID(); stored.board.ideas.unshift({ id: ideaId, title: title.slice(0, 100), detail: String(body.detail || '').trim().slice(0, 500), groupId, stage: 'spark', ownerId: user.id, ownerUsername: user.username, createdAt: now, updatedAt: now }); await this.userData.write(`user-${user.id}`, stored); return { ok: true, ideaId };
+    }
+    if (action === 'move-idea' || action === 'archive-idea') {
+      const ideaId = String(body.ideaId || ''); const stored = await readBoard(user); const idea = stored.board.ideas.find((item) => item.id === ideaId); if (!idea) throw Object.assign(new Error('Idea not found or not editable.'), { status: 404 });
+      if (action === 'archive-idea') idea.archivedAt = now; else { const stage = String(body.stage || ''); if (!['spark', 'shape', 'test', 'ready'].includes(stage)) throw new Error('Invalid idea stage.'); idea.stage = stage; } idea.updatedAt = now; await this.userData.write(`user-${user.id}`, stored); return { ok: true };
     }
     throw new Error('Unknown board action.');
   }

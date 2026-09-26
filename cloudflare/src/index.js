@@ -34,7 +34,7 @@ const initialState = () => ({
   todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
   feedback: [],
   memories: [],
-  board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [], groups: [], posts: [], replies: [] },
+  board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [], groups: [], posts: [], replies: [], ideas: [] },
   games: { getToKnowMe: initialGameState() },
 });
 
@@ -162,6 +162,7 @@ function normalizeSocialBoard(stored) {
   stored.board.groups = Array.isArray(stored.board.groups) ? stored.board.groups : [];
   stored.board.posts = Array.isArray(stored.board.posts) ? stored.board.posts : [];
   stored.board.replies = Array.isArray(stored.board.replies) ? stored.board.replies : [];
+  stored.board.ideas = Array.isArray(stored.board.ideas) ? stored.board.ideas : [];
   return stored;
 }
 
@@ -182,7 +183,7 @@ async function boardProjects(env, user) {
 
 async function boardSocial(env, user) {
   const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
-  const rows = result.results || []; const groups = []; const posts = []; const replies = [];
+  const rows = result.results || []; const groups = []; const posts = []; const replies = []; const ideas = [];
   for (const row of rows) {
     let stored; try { stored = normalizeSocialBoard(JSON.parse(row.state_json)); } catch { stored = normalizeSocialBoard({}); }
     for (const group of stored.board.groups) {
@@ -194,12 +195,13 @@ async function boardSocial(env, user) {
     }
     for (const post of stored.board.posts) posts.push({ ...post, ownerId: row.ownerId, ownerUsername: post.ownerUsername || row.username });
     for (const reply of stored.board.replies) replies.push({ ...reply, ownerId: row.ownerId, ownerUsername: reply.ownerUsername || row.username });
+    for (const idea of stored.board.ideas) ideas.push({ ...idea, ownerId: row.ownerId, ownerUsername: idea.ownerUsername || row.username });
   }
   const visibleGroupIds = new Set(groups.filter((group) => group.isMember).map((group) => group.id));
   groups.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
   posts.filter((post) => visibleGroupIds.has(post.groupId)).sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
   replies.sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')));
-  return json({ groups, posts: posts.filter((post) => visibleGroupIds.has(post.groupId)), replies: replies.filter((reply) => visibleGroupIds.has(reply.groupId)) });
+  return json({ groups, posts: posts.filter((post) => visibleGroupIds.has(post.groupId)), replies: replies.filter((reply) => visibleGroupIds.has(reply.groupId)), ideas: ideas.filter((idea) => !idea.archivedAt && (idea.ownerId === user.id || visibleGroupIds.has(idea.groupId))).sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || ''))) });
 }
 
 async function boardSocialAction(request, env, user) {
@@ -227,6 +229,14 @@ async function boardSocialAction(request, env, user) {
   }
   if (action === 'create-reply') {
     const postId = String(body.postId || ''); let post = null; for (const item of parsed) { const candidate = item.stored.board.posts.find((entry) => entry.id === postId); if (candidate) { post = candidate; break; } } if (!post) throw Object.assign(new Error('Post not found.'), { status: 404 }); const found = foundGroup(post.groupId); if (!found || !(found.row.ownerId === user.id || found.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before replying.'), { status: 403 }); const text = String(body.body || '').trim(); if (!text) throw new Error('Reply text is required.'); const own = parsed.find((item) => item.row.ownerId === user.id); own.stored.board.replies.push({ id: userId(), postId, groupId: found.group.id, body: text.slice(0, 1000), ownerId: user.id, ownerUsername: user.username, createdAt: now }); await save(user.id, own.stored); return json({ ok: true });
+  }
+  if (action === 'create-idea') {
+    const title = String(body.title || '').trim(); if (!title) throw new Error('Idea title is required.'); const groupId = String(body.groupId || ''); if (groupId) { const found = foundGroup(groupId); if (!found || !(found.row.ownerId === user.id || found.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before adding an idea.'), { status: 403 }); }
+    const own = parsed.find((item) => item.row.ownerId === user.id); const ideaId = userId(); own.stored.board.ideas.unshift({ id: ideaId, title: title.slice(0, 100), detail: String(body.detail || '').trim().slice(0, 500), groupId, stage: 'spark', ownerId: user.id, ownerUsername: user.username, createdAt: now, updatedAt: now }); await save(user.id, own.stored); return json({ ok: true, ideaId });
+  }
+  if (action === 'move-idea' || action === 'archive-idea') {
+    const ideaId = String(body.ideaId || ''); const own = parsed.find((item) => item.row.ownerId === user.id); const idea = own?.stored.board.ideas.find((item) => item.id === ideaId); if (!idea) throw Object.assign(new Error('Idea not found or not editable.'), { status: 404 });
+    if (action === 'archive-idea') idea.archivedAt = now; else { const stage = String(body.stage || ''); if (!['spark', 'shape', 'test', 'ready'].includes(stage)) throw new Error('Invalid idea stage.'); idea.stage = stage; } idea.updatedAt = now; await save(user.id, own.stored); return json({ ok: true });
   }
   throw new Error('Unknown board action.');
 }

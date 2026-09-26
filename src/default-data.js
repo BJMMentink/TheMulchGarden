@@ -25,7 +25,7 @@ export function createInitialState() {
     todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
     feedback: [],
     memories: [],
-    board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [], groups: [], posts: [], replies: [] },
+    board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [], groups: [], posts: [], replies: [], ideas: [] },
     games: { getToKnowMe: createGetToKnowMeState() },
   };
 }
