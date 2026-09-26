@@ -429,10 +429,17 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .repo-viewer-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: clamp(1rem, 4vw, 3rem); background: rgba(5, 5, 7, 0.76); backdrop-filter: blur(0.7rem); }
 .repo-viewer { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(74rem, 100%); height: min(45rem, 88svh); min-height: 28rem; overflow: hidden; border: 1px solid rgba(240, 174, 181, 0.3); border-radius: 0.85rem; background: linear-gradient(145deg, rgba(39, 17, 24, 0.98), rgba(14, 14, 17, 0.98) 45%); box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.48); }
 .repo-viewer-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgba(243, 238, 233, 0.12); padding: 1rem 1.15rem; }
+.repo-viewer-title { min-width: 0; }
 .repo-viewer-header h2 { margin-top: 0.35rem; color: #fbf4f5; font-size: clamp(1.3rem, 2.6vw, 2rem); font-weight: 500; letter-spacing: -0.05em; }
 .repo-viewer-header p { max-width: 46rem; margin-top: 0.4rem; color: #b9afb1; font-size: 0.76rem; line-height: 1.5; }
+.repo-viewer-header-actions { display: flex; align-items: end; flex-wrap: wrap; justify-content: end; gap: 0.55rem; margin-left: auto; }
+.repo-viewer-board-action { display: flex; align-items: end; gap: 0.4rem; }
+.repo-viewer-board-action label { display: grid; gap: 0.25rem; color: #756c70; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.repo-viewer-board-action select { min-width: 8rem; border: 1px solid rgba(243, 238, 233, 0.15); border-radius: 0.35rem; padding: 0.5rem 0.55rem; background: rgba(9, 9, 11, 0.72); color: #f3eee9; font: inherit; font-size: 0.68rem; letter-spacing: normal; text-transform: none; }
+.repo-viewer-no-groups { align-self: center; color: #756c70; font-size: 0.62rem; }
 .repo-viewer-close { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 1px solid rgba(243, 238, 233, 0.16); border-radius: 0.4rem; background: transparent; color: #f0aeb5; font-size: 1.35rem; line-height: 1; }
 .repo-viewer-close:hover { background: rgba(230, 149, 159, 0.12); }
+.repo-viewer-notice { border-bottom: 1px solid rgba(155, 185, 170, 0.24); padding: 0.55rem 1.15rem; background: rgba(83, 121, 98, 0.14); color: #b8d6c3; font-size: 0.68rem; }
 .repo-viewer-body { display: grid; grid-template-columns: minmax(16rem, 0.75fr) minmax(0, 1.35fr); min-height: 0; overflow: hidden; }
 .repo-viewer-summary { display: grid; align-content: start; gap: 0.9rem; min-height: 0; overflow: hidden; border-right: 1px solid rgba(243, 238, 233, 0.12); padding: 1rem; }
 .repo-viewer-facts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -480,6 +487,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 #app[data-minimal-view="board"] .board-sidebar-section summary > span:first-child { flex: 1; }
 #app[data-minimal-view="board"] .board-sidebar-summary-actions { display: inline-flex; align-items: center; gap: 0.35rem; }
 #app[data-minimal-view="board"] .board-sidebar-section .text-button { padding: 0.1rem; color: #f0aeb5; font-size: 1.15rem; }
+#app[data-minimal-view="board"] .board-sidebar-section .board-sidebar-add-folder { padding: 0.1rem 0.2rem; font-size: 0.62rem; }
 #app[data-minimal-view="board"] .board-drag-handle { color: #756c70; cursor: grab; font-size: 0.9rem; letter-spacing: -0.2em; }
 #app[data-minimal-view="board"] .board-sidebar-section-body { display: grid; gap: 0.15rem; padding: 0 0.25rem 0.55rem 1.15rem; }
 #app[data-minimal-view="board"] .board-folder-link { min-height: 2.35rem; border-color: transparent; border-inline-start: 2px solid transparent; border-radius: 0; padding: 0.48rem 0.5rem; background: transparent; color: #aaa1a1; font-size: 0.78rem; }
@@ -736,6 +744,8 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
   .board-view-tab { flex: 1; }
   .repo-viewer-backdrop { padding: 0.65rem; }
   .repo-viewer { height: min(92svh, 52rem); min-height: 0; }
+  .repo-viewer-header { flex-wrap: wrap; }
+  .repo-viewer-header-actions { width: 100%; justify-content: start; margin-left: 0; }
   .repo-viewer-body { grid-template-columns: 1fr; overflow: auto; }
   .repo-viewer-summary { max-height: 42%; border-right: 0; border-bottom: 1px solid rgba(243, 238, 233, 0.12); overflow: hidden; }
   .repo-viewer-inspector { min-height: 24rem; overflow: visible; }
