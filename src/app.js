@@ -39,6 +39,13 @@ let boardSocial = { groups: [], posts: [], replies: [] };
 let boardFeedGroupId = 'all';
 let boardMode = 'feed';
 let boardFeedSidebarOpen = true;
+let boardRepoViewer = null;
+let boardRepoViewerLoading = false;
+let boardRepoViewerError = '';
+let boardRepoViewerQuery = '';
+let boardRepoViewerContext = null;
+let boardRepoFilePreview = null;
+let boardRepoDetailCache = Object.create(null);
 let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
 let boardNavExpanded = false;
 const root = document.querySelector('#app');
@@ -476,7 +483,120 @@ function boardVisibilityLabel(project) {
 function boardRepoCard(repo) {
   const linked = ensureBoardState().projects.find((project) => project.repoUrl === repo.html_url);
   const topics = (repo.topics || []).slice(0, 4);
-  return `<article class="board-card board-repo-card"><div class="board-card-topline"><span class="board-source-pill">GitHub repo</span><span class="board-card-owner">${escapeHtml(repo.owner?.login || repo.boardOwner)}</span></div><div class="board-card-copy"><h3>${escapeHtml(repo.name)}</h3><p>${escapeHtml(repo.description || 'No description yet. Add a note when you pin this project to the board.')}</p></div><div class="board-card-meta"><span>${escapeHtml(repo.language || 'Unspecified')}</span><span>${Number(repo.stargazers_count || 0)} stars</span><span>Updated ${escapeHtml(new Date(repo.updated_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</span></div><div class="board-tag-row">${topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${linked ? `<span class="board-linked-state">Pinned · ${escapeHtml(boardVisibilityLabel(linked))}</span>` : `<button class="button button-quiet" data-board-link-repo data-board-owner="${escapeHtml(repo.owner?.login || repo.boardOwner)}" data-board-repo="${escapeHtml(repo.name)}">Pin to board</button>`}<a class="text-button" href="${escapeHtml(repo.html_url)}" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div></article>`;
+  const fullName = repo.full_name || `${repo.owner?.login || repo.boardOwner}/${repo.name}`;
+  return `<article class="board-card board-repo-card" data-board-open-repo="${escapeHtml(fullName)}" tabindex="0" role="button" aria-label="Open ${escapeHtml(repo.name)} repository viewer"><div class="board-card-topline"><span class="board-source-pill">GitHub repo</span><span class="board-card-owner">${escapeHtml(repo.owner?.login || repo.boardOwner)}</span></div><div class="board-card-copy"><h3>${escapeHtml(repo.name)}</h3><p>${escapeHtml(repo.description || 'No description yet. Add a note when you pin this project to the board.')}</p></div><div class="board-card-meta"><span>${escapeHtml(repo.language || 'Unspecified')}</span><span>${Number(repo.stargazers_count || 0)} stars</span><span>Updated ${escapeHtml(new Date(repo.updated_at || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</span></div><div class="board-tag-row">${topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${linked ? `<span class="board-linked-state">Pinned · ${escapeHtml(boardVisibilityLabel(linked))}</span>` : `<button class="button button-quiet" data-board-link-repo data-board-owner="${escapeHtml(repo.owner?.login || repo.boardOwner)}" data-board-repo="${escapeHtml(repo.name)}">Pin to board</button>`}<a class="text-button" href="${escapeHtml(repo.html_url)}" target="_blank" rel="noreferrer">Open on GitHub ↗</a></div></article>`;
+}
+
+function boardRepoIdentity(repo) {
+  const owner = repo?.owner?.login || repo?.boardOwner || String(repo?.full_name || '').split('/')[0];
+  const name = repo?.name || String(repo?.full_name || '').split('/')[1];
+  return owner && name ? { owner, name, fullName: `${owner}/${name}` } : null;
+}
+
+function boardRepoFromUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (url.hostname.toLocaleLowerCase() !== 'github.com') return null;
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length < 2) return null;
+    const owner = parts[0];
+    const name = parts[1].replace(/\.git$/, '');
+    if (!owner || !name) return null;
+    return { owner, name, full_name: `${owner}/${name}`, html_url: `https://github.com/${owner}/${name}`, default_branch: 'main', topics: [] };
+  } catch { return null; }
+}
+
+function boardRepoDetailKey(repo) {
+  return boardRepoIdentity(repo)?.fullName.toLocaleLowerCase() || '';
+}
+
+function boardRepoFileUrl(repo, path = '') {
+  const identity = boardRepoIdentity(repo);
+  if (!identity) return '#';
+  const branch = repo.default_branch || 'main';
+  const suffix = path ? `/${path.split('/').map(encodeURIComponent).join('/')}` : '';
+  return `https://github.com/${identity.fullName}/blob/${encodeURIComponent(branch)}${suffix}`;
+}
+
+function boardRepoQuickLinks(repo) {
+  const identity = boardRepoIdentity(repo);
+  if (!identity) return [];
+  const base = `https://github.com/${identity.fullName}`;
+  const branch = encodeURIComponent(repo.default_branch || 'main');
+  return [
+    ['Repository', repo.html_url || base],
+    ['Issues', `${base}/issues`],
+    ['Pull requests', `${base}/pulls`],
+    ['Commits', `${base}/commits/${branch}`],
+  ];
+}
+
+function readBoardRepoCache(key) {
+  if (boardRepoDetailCache[key]) return boardRepoDetailCache[key];
+  try {
+    const stored = JSON.parse(localStorage.getItem(`mg_board_repo:${key}`) || 'null');
+    if (stored?.expiresAt > Date.now() && stored.detail) { boardRepoDetailCache[key] = stored.detail; return stored.detail; }
+  } catch { /* The viewer can always refetch public metadata. */ }
+  return null;
+}
+
+function writeBoardRepoCache(key, detail) {
+  boardRepoDetailCache[key] = detail;
+  try { localStorage.setItem(`mg_board_repo:${key}`, JSON.stringify({ expiresAt: Date.now() + 10 * 60 * 1000, detail })); } catch { /* Keep the in-memory cache when storage is unavailable. */ }
+}
+
+async function loadBoardRepoDetail(repo) {
+  const identity = boardRepoIdentity(repo);
+  if (!identity) throw new Error('This repository link is not valid.');
+  const key = identity.fullName.toLocaleLowerCase();
+  const cached = readBoardRepoCache(key);
+  if (cached) return cached;
+  const base = `https://api.github.com/repos/${encodeURIComponent(identity.owner)}/${encodeURIComponent(identity.name)}`;
+  const metadataResponse = await fetch(base, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+  if (!metadataResponse.ok) throw new Error(metadataResponse.status === 404 ? 'This public repository could not be found.' : 'GitHub did not return repository details right now.');
+  const metadata = await metadataResponse.json();
+  const branch = metadata.default_branch || repo.default_branch || 'main';
+  const treeResponse = await fetch(`${base}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+  const treePayload = treeResponse.ok ? await treeResponse.json() : { tree: [] };
+  const detail = { ...repo, ...metadata, default_branch: branch, tree: (Array.isArray(treePayload.tree) ? treePayload.tree : []).filter((entry) => entry.type === 'blob' || entry.type === 'tree').slice(0, 2500) };
+  writeBoardRepoCache(key, detail);
+  return detail;
+}
+
+function decodeGithubContent(encoded) {
+  const bytes = Uint8Array.from(atob(String(encoded || '').replace(/\s/g, '')), (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+async function loadBoardRepoFile(repo, path) {
+  const identity = boardRepoIdentity(repo);
+  if (!identity || !path) throw new Error('Choose a file first.');
+  const branch = encodeURIComponent(repo.default_branch || 'main');
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+  const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(identity.owner)}/${encodeURIComponent(identity.name)}/contents/${encodedPath}?ref=${branch}`, { headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+  if (!response.ok) throw new Error('GitHub could not load that file preview.');
+  const payload = await response.json();
+  if (payload.encoding !== 'base64' || !payload.content) throw new Error('This file is not available as a text preview.');
+  return decodeGithubContent(payload.content).slice(0, 16000);
+}
+
+function boardRepoFileRows(detail) {
+  const query = boardRepoViewerQuery.trim().toLocaleLowerCase();
+  const files = (detail.tree || []).filter((entry) => !query || String(entry.path || '').toLocaleLowerCase().includes(query));
+  if (!files.length) return '<p class="repo-viewer-empty">No paths match that search.</p>';
+  return `${files.slice(0, 160).map((entry) => { const path = String(entry.path || ''); const isDirectory = entry.type === 'tree'; return `<div class="repo-file-row" data-board-context-file="${escapeHtml(path)}"><button type="button" class="repo-file-name" data-board-preview-file="${escapeHtml(path)}"><span class="repo-file-kind">${isDirectory ? 'DIR' : 'FILE'}</span><span>${escapeHtml(path)}</span></button>${isDirectory ? '' : `<a class="repo-file-open" href="${escapeHtml(boardRepoFileUrl(detail, path))}" target="_blank" rel="noreferrer" aria-label="Open ${escapeHtml(path)} on GitHub">↗</a>`}</div>`; }).join('')}${files.length > 160 ? '<p class="repo-viewer-limit">Showing the first 160 matching paths.</p>' : ''}`;
+}
+
+function boardRepoViewerPanel() {
+  if (!boardRepoViewer) return '';
+  const detail = boardRepoViewer;
+  const identity = boardRepoIdentity(detail);
+  const memberGroups = boardSocial.groups.filter((group) => group.isMember);
+  const links = boardRepoQuickLinks(detail);
+  const context = boardRepoViewerContext;
+  const preview = boardRepoFilePreview;
+  const overview = detail.description || 'No repository description was provided.';
+  return `<div class="repo-viewer-backdrop" data-board-close-repo-viewer><section class="repo-viewer" role="dialog" aria-modal="true" aria-labelledby="repo-viewer-title" data-board-repo-viewer><header class="repo-viewer-header"><div><span class="editorial-kicker">Repository viewer</span><h2 id="repo-viewer-title">${escapeHtml(identity?.fullName || detail.name || 'Repository')}</h2><p>${escapeHtml(overview)}</p></div><button type="button" class="repo-viewer-close" data-board-close-repo aria-label="Close repository viewer">×</button></header><div class="repo-viewer-body"><aside class="repo-viewer-summary"><div class="repo-viewer-facts"><span>${escapeHtml(detail.language || 'Mixed')}</span><span>${Number(detail.stargazers_count || 0)} stars</span><span>${Number(detail.forks_count || 0)} forks</span><span>${detail.default_branch ? `Branch: ${escapeHtml(detail.default_branch)}` : 'Public source'}</span></div><div class="repo-viewer-links"><span class="repo-viewer-label">Quick links</span>${links.map(([label, href]) => `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)} ↗</a>`).join('')}</div><label class="repo-viewer-search"><span>Find a path</span><input type="search" data-board-repo-search value="${escapeHtml(boardRepoViewerQuery)}" placeholder="src, README, config…" autocomplete="off"></label><div class="repo-file-list">${boardRepoViewerLoading ? '<p class="repo-viewer-empty">Loading repository paths…</p>' : boardRepoViewerError ? `<p class="repo-viewer-empty">${escapeHtml(boardRepoViewerError)}</p>` : boardRepoFileRows(detail)}</div></aside><div class="repo-viewer-inspector">${context ? `<div class="repo-callout-banner"><div><span class="repo-viewer-label">Code callout selected</span><code>${escapeHtml(context.path)}</code></div><button type="button" class="text-button" data-board-clear-repo-context>Clear</button></div>` : '<div class="repo-viewer-hint">Click a file to preview it. Right-click a file path to call it out in a group discussion.</div>'}${preview ? `<div class="repo-file-preview"><div class="repo-file-preview-heading"><span>${escapeHtml(preview.path)}</span><a href="${escapeHtml(boardRepoFileUrl(detail, preview.path))}" target="_blank" rel="noreferrer">Open ↗</a></div><pre><code>${escapeHtml(preview.content)}</code></pre></div>` : '<div class="repo-file-preview repo-file-preview-empty"><span>FILE PREVIEW</span><p>Select a text file from the tree to inspect a lightweight preview.</p></div>'}<form id="board-repo-share-form" class="repo-share-form"><div class="repo-share-heading"><div><span class="repo-viewer-label">Share context</span><h3>Start a focused discussion</h3></div><span>Replies stay with the group post.</span></div>${memberGroups.length ? `<label>Group<select name="groupId">${memberGroups.map((group) => `<option value="${escapeHtml(group.id)}" ${group.id === boardFeedGroupId ? 'selected' : ''}>${escapeHtml(group.name)}</option>`).join('')}</select></label><textarea name="body" required maxlength="2000" placeholder="What should the group look at?">${context ? `Take a look at ${escapeHtml(context.path)}. ` : ''}</textarea><input type="hidden" name="repoUrl" value="${escapeHtml(detail.html_url || '')}"><input type="hidden" name="repoPath" value="${escapeHtml(context?.path || '')}"><input type="hidden" name="repoQuery" value="${escapeHtml(boardRepoViewerQuery)}"><button type="submit" class="button">Share with group</button>` : '<p class="repo-viewer-empty">Join or create a group to share a repository discussion.</p>'}</form></div></div></section></div>`;
 }
 
 function boardProjectCard(project) {
@@ -564,7 +684,7 @@ function boardLibraryPage() {
     const activeFilterCount = Object.values(boardFilters).filter((value) => value && value !== 'all').length;
     page = `${page.slice(0, toolbarStart)}<details class="board-filters"><summary><span>Filters</span><span>${activeFilterCount ? `${activeFilterCount} active` : 'Refine results'} <b>＋</b></span></summary>${toolbar}</details>${page.slice(resultsStart)}`;
   }
-  return page.replace('<main class="board-main">', '<main class="board-main"><div class="board-view-switch"><span>Project library</span><button type="button" class="text-button" data-board-mode="feed">← Back to feed</button></div>');
+  return page.replace('<main class="board-main">', `<main class="board-main"><div class="board-view-switch"><span>Project library</span><button type="button" class="text-button" data-board-mode="feed">← Back to feed</button></div>${boardRepoViewerPanel()}`);
 }
 
 function boardGroupVisibilityLabel(group) {
@@ -575,7 +695,8 @@ function boardGroupVisibilityLabel(group) {
 
 function boardFeedPost(post, group, replies) {
   const postReplies = replies.filter((reply) => reply.postId === post.id);
-  return `<article class="board-post"><div class="board-post-topline"><div><strong>${escapeHtml(post.ownerUsername || 'Member')}</strong><span>in ${escapeHtml(group?.name || 'Group')}</span></div><time>${escapeHtml(new Date(post.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</time></div><p class="board-post-body">${escapeHtml(post.body)}</p>${post.snippet ? `<pre class="board-post-snippet"><code>${escapeHtml(post.snippet)}</code></pre>` : ''}${post.repoUrl ? `<a class="board-post-link" href="${escapeHtml(post.repoUrl)}" target="_blank" rel="noreferrer">Open linked project ↗</a>` : ''}<div class="board-post-replies">${postReplies.map((reply) => `<div class="board-reply"><strong>${escapeHtml(reply.ownerUsername || 'Member')}</strong><p>${escapeHtml(reply.body)}</p></div>`).join('')}</div>${group?.isMember ? `<form class="board-reply-form" data-board-reply-form="${escapeHtml(post.id)}"><input name="body" required maxlength="1000" placeholder="Reply to this post…"><button class="text-button" type="submit">Reply</button></form>` : ''}</article>`;
+  const contextLabel = post.repoPath ? `Code callout · ${post.repoPath}${post.repoLine ? `:${post.repoLine}` : ''}` : post.repoUrl ? 'Repository discussion' : '';
+  return `<article class="board-post"><div class="board-post-topline"><div><strong>${escapeHtml(post.ownerUsername || 'Member')}</strong><span>in ${escapeHtml(group?.name || 'Group')}</span></div><time>${escapeHtml(new Date(post.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</time></div><p class="board-post-body">${escapeHtml(post.body)}</p>${post.snippet ? `<pre class="board-post-snippet"><code>${escapeHtml(post.snippet)}</code></pre>` : ''}${post.repoUrl ? `<div class="board-post-context"><span>${escapeHtml(contextLabel)}</span><a class="board-post-link" data-board-post-repo="${escapeHtml(post.repoUrl)}" href="${escapeHtml(post.repoUrl)}" target="_blank" rel="noreferrer">${post.repoPath ? 'Open callout on GitHub ↗' : 'Open linked project ↗'}</a></div>` : ''}<div class="board-post-replies">${postReplies.map((reply) => `<div class="board-reply"><strong>${escapeHtml(reply.ownerUsername || 'Member')}</strong><p>${escapeHtml(reply.body)}</p></div>`).join('')}</div>${group?.isMember ? `<form class="board-reply-form" data-board-reply-form="${escapeHtml(post.id)}"><input name="body" required maxlength="1000" placeholder="Reply to this post…"><button class="text-button" type="submit">Reply</button></form>` : ''}</article>`;
 }
 
 function boardFeedPage() {
@@ -786,7 +907,8 @@ async function refreshBoardSocial() {
 
 function bindBoardSocialEvents() {
   document.querySelector('[data-board-toggle-sidebar]')?.addEventListener('click', () => { boardFeedSidebarOpen = !boardFeedSidebarOpen; renderMinimal('board'); });
-  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; if (boardMode === 'feed') boardRepoViewer = null; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-post-repo]').forEach((link) => link.addEventListener('click', (event) => { const repo = boardRepoFromUrl(link.dataset.boardPostRepo); if (!repo) return; event.preventDefault(); openBoardRepo(repo); }));
   document.querySelectorAll('[data-board-group]').forEach((button) => button.addEventListener('click', () => { boardFeedGroupId = button.dataset.boardGroup || 'all'; renderMinimal('board'); }));
   document.querySelectorAll('[data-board-join-group]').forEach((button) => button.addEventListener('click', async () => { try { await boardSocialAction('join-group', { groupId: button.dataset.boardJoinGroup }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } }));
   document.querySelectorAll('[data-board-approve-group]').forEach((button) => button.addEventListener('click', async () => { try { await boardSocialAction('approve-group-member', { groupId: button.dataset.boardApproveGroup, userId: button.dataset.boardApproveUser }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } }));
@@ -796,9 +918,44 @@ function bindBoardSocialEvents() {
   document.querySelector('[data-board-toggle-snippet]')?.addEventListener('click', (event) => { const input = document.querySelector('.board-snippet-input'); if (!input) return; input.toggleAttribute('hidden'); event.currentTarget.textContent = input.hidden ? '＋ Code snippet' : '− Hide snippet'; if (!input.hidden) input.focus(); });
 }
 
+function openBoardRepo(repo) {
+  if (!repo) return;
+  boardMode = 'library';
+  boardRepoViewer = { ...repo, tree: [] };
+  boardRepoViewerLoading = true;
+  boardRepoViewerError = '';
+  boardRepoViewerQuery = '';
+  boardRepoViewerContext = null;
+  boardRepoFilePreview = null;
+  renderMinimal('board');
+  const key = boardRepoDetailKey(repo);
+  loadBoardRepoDetail(repo).then((detail) => {
+    if (boardRepoDetailKey(boardRepoViewer) !== key) return;
+    boardRepoViewer = detail;
+    boardRepoViewerLoading = false;
+    renderMinimal('board');
+  }).catch((error) => {
+    if (boardRepoDetailKey(boardRepoViewer) !== key) return;
+    boardRepoViewerLoading = false;
+    boardRepoViewerError = error.message || 'Repository details are unavailable right now.';
+    renderMinimal('board');
+  });
+}
+
 function bindBoardEvents() {
   bindBoardGithubEvents();
-  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; if (boardMode === 'feed') boardRepoViewer = null; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-open-repo]').forEach((card) => {
+    const open = () => { const repo = boardAllRepos(ensureBoardState()).find((item) => (item.full_name || `${item.owner?.login || item.boardOwner}/${item.name}`) === card.dataset.boardOpenRepo); openBoardRepo(repo); };
+    card.addEventListener('click', (event) => { if (event.target.closest('a, button')) return; open(); });
+    card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
+  document.querySelector('[data-board-close-repo]')?.addEventListener('click', () => { boardRepoViewer = null; renderMinimal('board'); });
+  document.querySelector('[data-board-close-repo-viewer]')?.addEventListener('click', (event) => { if (event.target === event.currentTarget) { boardRepoViewer = null; renderMinimal('board'); } });
+  document.querySelector('[data-board-repo-search]')?.addEventListener('input', (event) => { boardRepoViewerQuery = event.currentTarget.value; const list = document.querySelector('.repo-file-list'); if (list && boardRepoViewer && !boardRepoViewerLoading && !boardRepoViewerError) list.innerHTML = boardRepoFileRows(boardRepoViewer); bindBoardRepoFileEvents(); });
+  bindBoardRepoFileEvents();
+  document.querySelector('[data-board-clear-repo-context]')?.addEventListener('click', () => { boardRepoViewerContext = null; renderMinimal('board'); });
+  document.querySelector('#board-repo-share-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); try { boardFeedGroupId = values.groupId; await boardSocialAction('create-post', values); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } });
   document.querySelectorAll('[data-board-folder]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = button.dataset.boardFolder; renderMinimal('board'); }));
   document.querySelector('[data-board-add-folder]')?.addEventListener('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
   document.querySelectorAll('[data-board-side-project]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = 'all'; boardFilters.query = button.dataset.boardSideProject || ''; renderMinimal('board'); }));
@@ -822,6 +979,26 @@ function bindBoardEvents() {
   document.querySelectorAll('[data-board-link-repo]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const repo = (boardRepoCache[button.dataset.boardOwner] || []).find((item) => item.name === button.dataset.boardRepo); if (!repo) return; board.projects.unshift({ id: `board-project-${Date.now()}`, title: repo.name, description: repo.description || '', note: '', repoUrl: repo.html_url, ownerUsername: repo.owner?.login || button.dataset.boardOwner, language: repo.language || '', topics: repo.topics || [], folderId: board.folders[0].id, visibility: 'private', memberIds: [], groupNames: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); }));
   document.querySelector('#board-project-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const board = ensureBoardState(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form)); const title = String(values.title || '').trim(); if (!title) return; const repoUrl = String(values.repoUrl || '').trim(); const memberIds = [...form.querySelectorAll('input[name="memberIds"]:checked')].map((input) => input.value); board.projects.unshift({ id: `board-project-${Date.now()}`, title: title.slice(0, 100), description: '', note: String(values.note || '').trim().slice(0, 500), repoUrl, ownerUsername: currentUser.username, language: String(values.language || '').trim().slice(0, 40), topics: String(values.topics || '').split(',').map((topic) => topic.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 8), folderId: String(values.folderId || board.folders[0].id), visibility: ['members', 'all'].includes(values.visibility) ? values.visibility : 'private', memberIds, groupNames: String(values.groupNames || '').split(',').map((group) => group.trim()).filter(Boolean).slice(0, 5), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); });
   document.querySelectorAll('[data-board-remove]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const project = boardProjectsForUser(board).find((item) => item.id === button.dataset.boardRemove); if (!project || (project.ownerId !== currentUser.id && currentUser.role !== 'admin')) return; try { await removeBoardProject(project.id); board.projects = board.projects.filter((item) => item.id !== project.id); boardSharedProjects = boardSharedProjects.filter((item) => item.id !== project.id); await saveState(state); renderMinimal('board'); } catch (error) { window.alert(error.message); } }));
+}
+
+function bindBoardRepoFileEvents() {
+  document.querySelectorAll('[data-board-preview-file]').forEach((button) => button.addEventListener('click', async () => {
+    if (!boardRepoViewer || boardRepoViewerLoading) return;
+    const path = button.dataset.boardPreviewFile;
+    const repoKey = boardRepoDetailKey(boardRepoViewer);
+    boardRepoFilePreview = { path, content: 'Loading file preview…' };
+    renderMinimal('board');
+    try {
+      const content = await loadBoardRepoFile(boardRepoViewer, path);
+      if (!boardRepoViewer || boardRepoDetailKey(boardRepoViewer) !== repoKey) return;
+      boardRepoFilePreview = { path, content };
+      renderMinimal('board');
+    } catch (error) {
+      boardRepoFilePreview = { path, content: error.message || 'File preview unavailable.' };
+      renderMinimal('board');
+    }
+  }));
+  document.querySelectorAll('[data-board-context-file]').forEach((row) => row.addEventListener('contextmenu', (event) => { event.preventDefault(); boardRepoViewerContext = { repo: boardRepoDetailKey(boardRepoViewer), path: row.dataset.boardContextFile }; renderMinimal('board'); }));
 }
 
 function bindMinimalEvents(view, page = 'profile') {

@@ -336,6 +336,8 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .board-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .board-card { display: grid; gap: 0.9rem; min-height: 17rem; padding: 1.1rem; border: 1px solid rgba(243, 238, 233, 0.13); background: linear-gradient(145deg, rgba(108, 35, 50, 0.22), rgba(19, 19, 22, 0.84) 58%), #131316; }
 .board-card:hover { border-color: rgba(230, 149, 159, 0.38); }
+.board-repo-card { cursor: pointer; }
+.board-repo-card:focus-visible { outline: 2px solid #f0aeb5; outline-offset: 3px; }
 .board-card-topline { color: #756c70; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .board-source-pill { color: #e6959f; }.board-source-project { color: #9bb9aa; }.board-card-owner { color: #aaa1a1; }
 .board-card-copy h3 { margin-top: 0.55rem; color: #f3eee9; font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 500; letter-spacing: -0.06em; line-height: 0.98; }
@@ -422,6 +424,51 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .board-feed-empty { display: grid; place-items: center; align-content: center; gap: 0.5rem; min-height: 16rem; border: 1px dashed rgba(230, 149, 159, 0.28); padding: 1.5rem; text-align: center; }
 .board-feed-empty h3 { color: #f3eee9; font-size: 1.25rem; font-weight: 500; }
 .board-feed-empty p { max-width: 24rem; color: #aaa1a1; font-size: 0.76rem; line-height: 1.6; }
+.board-post-context { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; border: 1px solid rgba(230, 149, 159, 0.2); border-radius: 0.4rem; padding: 0.55rem 0.65rem; background: rgba(93, 32, 44, 0.16); }
+.board-post-context > span { overflow: hidden; color: #d8c3c6; font-size: 0.66rem; text-overflow: ellipsis; white-space: nowrap; }
+.repo-viewer-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: clamp(1rem, 4vw, 3rem); background: rgba(5, 5, 7, 0.76); backdrop-filter: blur(0.7rem); }
+.repo-viewer { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(74rem, 100%); height: min(45rem, 88svh); min-height: 28rem; overflow: hidden; border: 1px solid rgba(240, 174, 181, 0.3); border-radius: 0.85rem; background: linear-gradient(145deg, rgba(39, 17, 24, 0.98), rgba(14, 14, 17, 0.98) 45%); box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.48); }
+.repo-viewer-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; border-bottom: 1px solid rgba(243, 238, 233, 0.12); padding: 1rem 1.15rem; }
+.repo-viewer-header h2 { margin-top: 0.35rem; color: #fbf4f5; font-size: clamp(1.3rem, 2.6vw, 2rem); font-weight: 500; letter-spacing: -0.05em; }
+.repo-viewer-header p { max-width: 46rem; margin-top: 0.4rem; color: #b9afb1; font-size: 0.76rem; line-height: 1.5; }
+.repo-viewer-close { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 1px solid rgba(243, 238, 233, 0.16); border-radius: 0.4rem; background: transparent; color: #f0aeb5; font-size: 1.35rem; line-height: 1; }
+.repo-viewer-close:hover { background: rgba(230, 149, 159, 0.12); }
+.repo-viewer-body { display: grid; grid-template-columns: minmax(16rem, 0.75fr) minmax(0, 1.35fr); min-height: 0; overflow: hidden; }
+.repo-viewer-summary { display: grid; align-content: start; gap: 0.9rem; min-height: 0; overflow: hidden; border-right: 1px solid rgba(243, 238, 233, 0.12); padding: 1rem; }
+.repo-viewer-facts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.repo-viewer-facts span { border: 1px solid rgba(243, 238, 233, 0.13); border-radius: 999px; padding: 0.3rem 0.45rem; color: #aaa1a1; font-size: 0.62rem; }
+.repo-viewer-links { display: grid; gap: 0.35rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(243, 238, 233, 0.12); }
+.repo-viewer-label { color: #756c70; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.repo-viewer-links a { width: fit-content; color: #f0aeb5; font-size: 0.72rem; }
+.repo-viewer-search { display: grid; gap: 0.35rem; color: #aaa1a1; font-size: 0.65rem; text-transform: uppercase; }
+.repo-viewer-search input, .repo-share-form input, .repo-share-form textarea, .repo-share-form select { width: 100%; min-width: 0; border: 1px solid rgba(243, 238, 233, 0.15); border-radius: 0.35rem; padding: 0.65rem 0.7rem; background: rgba(9, 9, 11, 0.72); color: #f3eee9; font: inherit; font-size: 0.76rem; letter-spacing: normal; text-transform: none; }
+.repo-file-list { display: grid; align-content: start; gap: 0.15rem; min-height: 0; overflow: auto; padding-right: 0.25rem; }
+.repo-file-row { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; border-inline-start: 2px solid transparent; padding: 0.38rem 0.4rem; }
+.repo-file-row:hover { border-inline-start-color: #e6959f; background: rgba(230, 149, 159, 0.08); }
+.repo-file-name { display: flex; align-items: center; gap: 0.45rem; min-width: 0; border: 0; background: transparent; color: #c8bfc1; font: inherit; font-size: 0.7rem; text-align: left; }
+.repo-file-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-file-kind { color: #756c70; font-size: 0.55rem; letter-spacing: 0.08em; }
+.repo-file-open { flex: 0 0 auto; color: #f0aeb5; font-size: 0.7rem; }
+.repo-viewer-empty, .repo-viewer-limit { color: #756c70; font-size: 0.7rem; line-height: 1.5; }
+.repo-viewer-inspector { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.8rem; min-width: 0; min-height: 0; overflow: hidden; padding: 1rem; }
+.repo-viewer-hint { border: 1px dashed rgba(230, 149, 159, 0.28); padding: 0.65rem 0.75rem; color: #aaa1a1; font-size: 0.7rem; line-height: 1.5; }
+.repo-callout-banner { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; border: 1px solid rgba(230, 149, 159, 0.3); padding: 0.6rem 0.7rem; background: rgba(93, 32, 44, 0.2); }
+.repo-callout-banner > div { display: grid; gap: 0.25rem; min-width: 0; }
+.repo-callout-banner code { overflow: hidden; color: #f3eee9; font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
+.repo-file-preview { min-height: 0; overflow: hidden; border: 1px solid rgba(243, 238, 233, 0.12); border-radius: 0.45rem; background: #0d0d10; }
+.repo-file-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; border-bottom: 1px solid rgba(243, 238, 233, 0.1); padding: 0.55rem 0.7rem; color: #b9afb1; font-size: 0.68rem; }
+.repo-file-preview-heading span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-file-preview-heading a { color: #f0aeb5; }
+.repo-file-preview pre { height: calc(100% - 2.15rem); overflow: auto; margin: 0; padding: 0.8rem; color: #c8b4b8; font-size: 0.68rem; line-height: 1.55; white-space: pre; }
+.repo-file-preview-empty { display: grid; place-items: center; align-content: center; gap: 0.6rem; padding: 2rem; text-align: center; }
+.repo-file-preview-empty span { color: #756c70; font-size: 0.6rem; letter-spacing: 0.1em; }
+.repo-file-preview-empty p { max-width: 20rem; color: #aaa1a1; font-size: 0.72rem; line-height: 1.55; }
+.repo-share-form { display: grid; gap: 0.55rem; border-top: 1px solid rgba(243, 238, 233, 0.12); padding-top: 0.75rem; }
+.repo-share-heading { display: flex; align-items: end; justify-content: space-between; gap: 0.6rem; }
+.repo-share-heading h3 { margin-top: 0.25rem; color: #f3eee9; font-size: 0.9rem; font-weight: 600; }
+.repo-share-heading > span { color: #756c70; font-size: 0.62rem; }
+.repo-share-form label { display: grid; gap: 0.3rem; color: #aaa1a1; font-size: 0.64rem; text-transform: uppercase; }
+.repo-share-form textarea { min-height: 3.8rem; resize: vertical; }
 #app[data-minimal-view="board"] .board-sidebar { align-content: start; gap: 0; padding: 0.65rem; }
 #app[data-minimal-view="board"] .board-sidebar-modern { overflow: auto; }
 #app[data-minimal-view="board"] .board-sidebar-stack { display: grid; gap: 0.3rem; }
@@ -687,6 +734,11 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
   .board-feed-heading { align-items: start; flex-direction: column; }
   .board-feed-actions { align-self: stretch; }
   .board-view-tab { flex: 1; }
+  .repo-viewer-backdrop { padding: 0.65rem; }
+  .repo-viewer { height: min(92svh, 52rem); min-height: 0; }
+  .repo-viewer-body { grid-template-columns: 1fr; overflow: auto; }
+  .repo-viewer-summary { max-height: 42%; border-right: 0; border-bottom: 1px solid rgba(243, 238, 233, 0.12); overflow: hidden; }
+  .repo-viewer-inspector { min-height: 24rem; overflow: visible; }
 
   #app[data-minimal-view="board"] .minimal-viewport,
   #app[data-minimal-view="board"] .minimal-track,
