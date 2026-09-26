@@ -498,8 +498,66 @@ function renderBoardPageLegacy() {
   return `<section class="board-page"><div class="board-layout"><aside class="board-sidebar"><div class="board-sidebar-heading"><span class="editorial-kicker">Project board / 004</span><h2>Shared work, clearly held.</h2><p>Link public GitHub work, keep ideas in folders, and decide who can see each project.</p></div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>Folders</span><button class="text-button" data-board-add-folder>＋</button></div><button class="board-folder-link ${boardFilters.folder === 'all' ? 'is-active' : ''}" data-board-folder="all"><span>All projects</span><strong>${allProjects.length + boardAllRepos(board).length}</strong></button>${board.folders.map((folder) => `<button class="board-folder-link ${boardFilters.folder === folder.id ? 'is-active' : ''}" data-board-folder="${escapeHtml(folder.id)}"><span>${escapeHtml(folder.name)}</span><strong>${allProjects.filter((project) => project.folderId === folder.id).length}</strong></button>`).join('')}</div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>GitHub profiles</span><span class="board-count">${board.githubProfiles.length}/3</span></div>${profileCards}<form id="board-github-form" class="board-sidebar-form"><label>Public profile URL<input name="profileUrl" required placeholder="github.com/username" autocomplete="url"></label><button class="button button-quiet" type="submit" ${board.githubProfiles.length >= 3 ? 'disabled' : ''}>Link profile</button></form></div><div class="board-sidebar-note"><span class="editorial-kicker">Safety boundary</span><p>Mulch Garden only reads public repository metadata. It never receives GitHub passwords, tokens, or write access.</p></div>${currentUser.role === 'admin' ? '<div class="board-admin-note"><span class="editorial-kicker">Admin view</span><p>Moderation can hide or remove board entries. Removing a card never deletes the source repository on GitHub.</p></div>' : ''}</aside><main class="board-main"><div class="board-main-heading"><div><span class="editorial-kicker">A social project surface</span><h2>Projects with somewhere to go.</h2><p>Browse public repositories and collect the concepts worth sharing with the right people.</p></div><details class="board-compose"><summary><span>＋</span> Add a project</summary><form id="board-project-form"><label>Project name<input name="title" required maxlength="100" placeholder="A project, idea, or code base"></label><label>Source URL<input name="repoUrl" type="url" placeholder="https://github.com/…"></label><label>Note<textarea name="note" maxlength="500" placeholder="Why is this worth sharing?"></textarea></label><div class="board-form-grid"><label>Folder<select name="folderId">${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<input name="language" placeholder="JavaScript, Python…"></label></div><label>Topics<input name="topics" placeholder="agents, games, design"></label><label>Share with<select name="visibility"><option value="private">Private to me</option><option value="members">Specific people / groups</option><option value="all">All users</option></select></label><fieldset class="board-share-people"><legend>Specific people</legend>${memberChecks || '<span class="field-note">No other users are available yet.</span>'}</fieldset><label>Group names<input name="groupNames" placeholder="e.g. game builders, study group"></label><button class="button" type="submit">Add to board</button></form></details></div><div class="board-stats"><article><strong>${boardAllRepos(board).length}</strong><span>public repos loaded</span></article><article><strong>${allProjects.length}</strong><span>visible board projects</span></article><article><strong>${board.githubProfiles.length}/3</strong><span>GitHub profiles</span></article></div><div class="board-toolbar"><label class="board-search">Search board<input data-board-filter="query" value="${escapeHtml(boardFilters.query)}" placeholder="Search projects, users, topics…"></label><label>Folder<select data-board-filter="folder"><option value="all">All folders</option>${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}" ${boardFilters.folder === folder.id ? 'selected' : ''}>${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<select data-board-filter="language"><option value="all">All languages</option>${languages.map((language) => `<option value="${escapeHtml(language)}" ${boardFilters.language === language ? 'selected' : ''}>${escapeHtml(language)}</option>`).join('')}</select></label><label>Topic<select data-board-filter="topic"><option value="all">All topics</option>${topics.map((topic) => `<option value="${escapeHtml(topic)}" ${boardFilters.topic === topic ? 'selected' : ''}>${escapeHtml(topic)}</option>`).join('')}</select></label><label>User<select data-board-filter="owner"><option value="all">All users</option>${owners.map((owner) => `<option value="${escapeHtml(owner)}" ${boardFilters.owner === owner ? 'selected' : ''}>${escapeHtml(owner)}</option>`).join('')}</select></label></div><div class="board-results-heading"><span>${cards ? `${projects.length + repos.length} results` : 'No projects yet'}</span><span>Public metadata · curated by people</span></div><div class="board-grid">${cards || '<article class="board-empty-state"><span class="board-empty-icon">⌘</span><h3>Start with a public GitHub profile.</h3><p>Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.</p></article>'}</div></main></div></section>`;
 }
 
+const BOARD_SIDEBAR_SECTIONS = ['pinned', 'recent', 'folders'];
+
+function boardSidebarOrderKey() {
+  return `${minimalStorageKey('mg_board_sidebar_order:')}`;
+}
+
+function boardSidebarSectionOrder() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(boardSidebarOrderKey()) || 'null');
+    if (Array.isArray(stored) && stored.length === BOARD_SIDEBAR_SECTIONS.length && stored.every((item) => BOARD_SIDEBAR_SECTIONS.includes(item))) return stored;
+  } catch {
+    // Use the default order when localStorage is unavailable or malformed.
+  }
+  return [...BOARD_SIDEBAR_SECTIONS];
+}
+
+function rememberBoardSidebarSectionOrder(order) {
+  try { localStorage.setItem(boardSidebarOrderKey(), JSON.stringify(order)); } catch { /* The board remains usable without persistence. */ }
+}
+
+function boardSidebarProjectRows(items, emptyText) {
+  return items.length
+    ? items.slice(0, 6).map((item) => `<button type="button" class="board-sidebar-project" data-board-side-project="${escapeHtml(item.query)}"><span>${escapeHtml(item.title)}</span><small>${escapeHtml(item.meta)}</small></button>`).join('')
+    : `<p class="board-sidebar-empty">${emptyText}</p>`;
+}
+
+function boardSidebarPage(board, allProjects) {
+  const pinned = allProjects
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0))
+    .map((project) => ({ title: project.title, meta: project.ownerUsername || currentUser.username, query: project.title }));
+  const recent = boardAllRepos(board)
+    .slice()
+    .sort((left, right) => new Date(right.updated_at || 0) - new Date(left.updated_at || 0))
+    .map((repo) => ({ title: repo.name, meta: repo.owner?.login || repo.boardOwner || 'GitHub', query: repo.name }));
+  const folders = `<details class="board-sidebar-section board-sidebar-block" data-board-sidebar-section="folders" draggable="true" open><summary><span>Folders</span><span class="board-sidebar-summary-actions"><span class="board-drag-handle" aria-hidden="true">⋮⋮</span><button type="button" class="text-button" data-board-add-folder aria-label="Add folder">＋</button></span></summary><div class="board-sidebar-section-body"><button type="button" class="board-folder-link ${boardFilters.folder === 'all' ? 'is-active' : ''}" data-board-folder="all"><span>All projects</span><strong>${allProjects.length + boardAllRepos(board).length}</strong></button>${board.folders.map((folder) => `<button type="button" class="board-folder-link ${boardFilters.folder === folder.id ? 'is-active' : ''}" data-board-folder="${escapeHtml(folder.id)}" data-board-folder-drag="true" draggable="true"><span>${escapeHtml(folder.name)}</span><strong>${allProjects.filter((project) => project.folderId === folder.id).length}</strong></button>`).join('')}</div></details>`;
+  const sections = {
+    pinned: `<details class="board-sidebar-section board-sidebar-block" data-board-sidebar-section="pinned" draggable="true" open><summary><span>Pinned projects</span><span class="board-drag-handle" aria-hidden="true">⋮⋮</span></summary><div class="board-sidebar-section-body">${boardSidebarProjectRows(pinned, 'Pinned projects will appear here.')}</div></details>`,
+    recent: `<details class="board-sidebar-section board-sidebar-block" data-board-sidebar-section="recent" draggable="true" open><summary><span>Recents</span><span class="board-drag-handle" aria-hidden="true">⋮⋮</span></summary><div class="board-sidebar-section-body">${boardSidebarProjectRows(recent, 'Recent GitHub projects will appear here.')}</div></details>`,
+    folders,
+  };
+  const sectionMarkup = boardSidebarSectionOrder().map((section) => sections[section]).join('');
+  return `<aside class="board-sidebar board-sidebar-modern"><div class="board-sidebar-stack">${sectionMarkup}</div></aside>`;
+}
+
 function boardPage() {
-  return renderBoardPageLegacy().replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Link a public GitHub profile from Account → Board setup. Their repositories will appear here with search, language, topic, and user filters.');
+  const board = ensureBoardState();
+  const allProjects = boardProjectsForUser(board);
+  let page = renderBoardPageLegacy().replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Link a public GitHub profile from Account → Board setup. Their repositories will appear here with search, language, topic, and user filters.');
+  const sidebarStart = page.indexOf('<aside class="board-sidebar">');
+  const sidebarEnd = page.indexOf('</aside>', sidebarStart);
+  if (sidebarStart >= 0 && sidebarEnd >= 0) page = `${page.slice(0, sidebarStart)}${boardSidebarPage(board, allProjects)}${page.slice(sidebarEnd + '</aside>'.length)}`;
+  const toolbarStart = page.indexOf('<div class="board-toolbar">');
+  const resultsStart = page.indexOf('<div class="board-results-heading">', toolbarStart);
+  if (toolbarStart >= 0 && resultsStart > toolbarStart) {
+    const toolbar = page.slice(toolbarStart, resultsStart);
+    const activeFilterCount = Object.values(boardFilters).filter((value) => value && value !== 'all').length;
+    page = `${page.slice(0, toolbarStart)}<details class="board-filters"><summary><span>Filters</span><span>${activeFilterCount ? `${activeFilterCount} active` : 'Refine results'} <b>＋</b></span></summary>${toolbar}</details>${page.slice(resultsStart)}`;
+  }
+  return page;
 }
 
 function securitySettings(message = '') {
@@ -675,7 +733,24 @@ function bindBoardGithubEvents() {
 function bindBoardEvents() {
   bindBoardGithubEvents();
   document.querySelectorAll('[data-board-folder]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = button.dataset.boardFolder; renderMinimal('board'); }));
-  document.querySelector('[data-board-add-folder]')?.addEventListener('click', async () => { const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
+  document.querySelector('[data-board-add-folder]')?.addEventListener('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
+  document.querySelectorAll('[data-board-side-project]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = 'all'; boardFilters.query = button.dataset.boardSideProject || ''; renderMinimal('board'); }));
+  let draggedSidebarSection = null;
+  document.querySelectorAll('[data-board-sidebar-section]').forEach((section) => {
+    section.addEventListener('dragstart', (event) => { if (!event.target.closest('summary')) { event.preventDefault(); return; } draggedSidebarSection = section; section.classList.add('is-dragging'); event.dataTransfer?.setData('text/plain', section.dataset.boardSidebarSection); });
+    section.addEventListener('dragover', (event) => { if (!draggedSidebarSection || draggedSidebarSection === section) return; event.preventDefault(); section.classList.add('is-drag-target'); });
+    section.addEventListener('dragleave', () => section.classList.remove('is-drag-target'));
+    section.addEventListener('drop', (event) => { event.preventDefault(); section.classList.remove('is-drag-target'); if (!draggedSidebarSection || draggedSidebarSection === section) return; const parent = section.parentElement; const movingBefore = draggedSidebarSection.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING; parent.insertBefore(draggedSidebarSection, movingBefore ? section : section.nextSibling); const order = [...parent.querySelectorAll('[data-board-sidebar-section]')].map((item) => item.dataset.boardSidebarSection); rememberBoardSidebarSectionOrder(order); draggedSidebarSection.classList.remove('is-dragging'); draggedSidebarSection = null; renderMinimal('board'); });
+    section.addEventListener('dragend', () => { section.classList.remove('is-dragging', 'is-drag-target'); draggedSidebarSection = null; });
+  });
+  let draggedFolderId = null;
+  document.querySelectorAll('[data-board-folder-drag]').forEach((button) => {
+    button.addEventListener('dragstart', (event) => { draggedFolderId = button.dataset.boardFolder; event.stopPropagation(); event.dataTransfer?.setData('text/plain', draggedFolderId); button.classList.add('is-dragging'); });
+    button.addEventListener('dragover', (event) => { if (!draggedFolderId || draggedFolderId === button.dataset.boardFolder) return; event.preventDefault(); event.stopPropagation(); button.classList.add('is-drag-target'); });
+    button.addEventListener('dragleave', () => button.classList.remove('is-drag-target'));
+    button.addEventListener('drop', async (event) => { event.preventDefault(); event.stopPropagation(); button.classList.remove('is-drag-target'); if (!draggedFolderId || draggedFolderId === button.dataset.boardFolder) return; const board = ensureBoardState(); const fromIndex = board.folders.findIndex((folder) => folder.id === draggedFolderId); const toIndex = board.folders.findIndex((folder) => folder.id === button.dataset.boardFolder); if (fromIndex < 0 || toIndex < 0) return; const [moved] = board.folders.splice(fromIndex, 1); board.folders.splice(toIndex, 0, moved); draggedFolderId = null; await saveState(state); renderMinimal('board'); });
+    button.addEventListener('dragend', () => { button.classList.remove('is-dragging', 'is-drag-target'); draggedFolderId = null; });
+  });
   document.querySelectorAll('[data-board-filter]').forEach((input) => input.addEventListener(input.tagName === 'INPUT' ? 'input' : 'change', () => { boardFilters[input.dataset.boardFilter] = input.value; renderMinimal('board'); }));
   document.querySelectorAll('[data-board-link-repo]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); const repo = (boardRepoCache[button.dataset.boardOwner] || []).find((item) => item.name === button.dataset.boardRepo); if (!repo) return; board.projects.unshift({ id: `board-project-${Date.now()}`, title: repo.name, description: repo.description || '', note: '', repoUrl: repo.html_url, ownerUsername: repo.owner?.login || button.dataset.boardOwner, language: repo.language || '', topics: repo.topics || [], folderId: board.folders[0].id, visibility: 'private', memberIds: [], groupNames: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); }));
   document.querySelector('#board-project-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const board = ensureBoardState(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form)); const title = String(values.title || '').trim(); if (!title) return; const repoUrl = String(values.repoUrl || '').trim(); const memberIds = [...form.querySelectorAll('input[name="memberIds"]:checked')].map((input) => input.value); board.projects.unshift({ id: `board-project-${Date.now()}`, title: title.slice(0, 100), description: '', note: String(values.note || '').trim().slice(0, 500), repoUrl, ownerUsername: currentUser.username, language: String(values.language || '').trim().slice(0, 40), topics: String(values.topics || '').split(',').map((topic) => topic.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 8), folderId: String(values.folderId || board.folders[0].id), visibility: ['members', 'all'].includes(values.visibility) ? values.visibility : 'private', memberIds, groupNames: String(values.groupNames || '').split(',').map((group) => group.trim()).filter(Boolean).slice(0, 5), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await saveState(state); renderMinimal('board'); });
