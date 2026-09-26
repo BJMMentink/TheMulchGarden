@@ -20,6 +20,8 @@ export async function loadState() { return request('/api/state'); }
 export async function loadMembers() { return (await request('/api/members')).members; }
 export async function loadBoardProjects() { return (await request('/api/board/projects')).projects; }
 export async function removeBoardProject(id) { return request(`/api/board/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+export async function loadBoardSocial() { return request('/api/board/social'); }
+export async function boardSocialAction(action, payload = {}) { return request('/api/board/social', { method: 'POST', body: JSON.stringify({ action, ...payload }) }); }
 export async function loadChatMessages() { return (await request('/api/chat/messages')).messages; }
 export async function loadDailyWordle() { return request('/api/wordle/today'); }
 export async function sendChatMessage(message) { return (await request('/api/chat/messages', { method: 'POST', body: JSON.stringify({ message }) })).message; }

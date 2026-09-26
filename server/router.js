@@ -14,6 +14,8 @@ export function createRouter({ auth, app, bodyLimit }) {
       if (request.method === 'PATCH' && path === '/api/auth/me') return send(response, 200, { user: await auth.update(body, user) });
       if (request.method === 'GET' && path === '/api/members') return send(response, 200, { members: await app.listMembers() });
       if (request.method === 'GET' && path === '/api/board/projects') return send(response, 200, { projects: await app.listBoardProjects(user) });
+      if (request.method === 'GET' && path === '/api/board/social') return send(response, 200, await app.listBoardSocial(user));
+      if (request.method === 'POST' && path === '/api/board/social') return send(response, 200, await app.boardSocialAction(user, body));
       const boardProjectMatch = path.match(/^\/api\/board\/projects\/([^/]+)$/);
       if (request.method === 'DELETE' && boardProjectMatch) return send(response, 200, await app.removeBoardProject(user, decodeURIComponent(boardProjectMatch[1])));
       if (request.method === 'GET' && path === '/api/wordle/today') return send(response, 200, await app.dailyWordle());

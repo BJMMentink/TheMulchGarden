@@ -5,7 +5,7 @@ import { createGetToKnowMeState, getCurrentQuestion, getGameTheme, recordAnswer,
 import { createWordleState, getDailyAnswer, getWordleDate, resetWordleForDate, submitWordleGuess } from './wordle.js';
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
-import { getCurrentUser, loadBoardProjects, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount } from './storage.js';
+import { boardSocialAction, getCurrentUser, loadBoardProjects, loadBoardSocial, loadChatMessages, loadDailyWordle, loadMembers, loadState, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount } from './storage.js';
 
 let state;
 let currentUser;
@@ -35,6 +35,9 @@ let heroIntroInitialFull = false;
 let heroTouchStartY;
 let boardRepoCache = Object.create(null);
 let boardSharedProjects = [];
+let boardSocial = { groups: [], posts: [], replies: [] };
+let boardFeedGroupId = 'all';
+let boardMode = 'feed';
 let boardFilters = { query: '', folder: 'all', language: 'all', topic: 'all', owner: 'all' };
 let boardNavExpanded = false;
 const root = document.querySelector('#app');
@@ -425,6 +428,9 @@ function ensureBoardState() {
   if (!Array.isArray(state.board.githubProfiles)) state.board.githubProfiles = [];
   if (!Array.isArray(state.board.folders) || !state.board.folders.length) state.board.folders = [{ id: 'board-folder-inbox', name: 'Inbox' }];
   if (!Array.isArray(state.board.projects)) state.board.projects = [];
+  if (!Array.isArray(state.board.groups)) state.board.groups = [];
+  if (!Array.isArray(state.board.posts)) state.board.posts = [];
+  if (!Array.isArray(state.board.replies)) state.board.replies = [];
   return state.board;
 }
 
@@ -543,7 +549,7 @@ function boardSidebarPage(board, allProjects) {
   return `<aside class="board-sidebar board-sidebar-modern"><div class="board-sidebar-stack">${sectionMarkup}</div></aside>`;
 }
 
-function boardPage() {
+function boardLibraryPage() {
   const board = ensureBoardState();
   const allProjects = boardProjectsForUser(board);
   let page = renderBoardPageLegacy().replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Link a public GitHub profile from Account → Board setup. Their repositories will appear here with search, language, topic, and user filters.');
@@ -557,8 +563,36 @@ function boardPage() {
     const activeFilterCount = Object.values(boardFilters).filter((value) => value && value !== 'all').length;
     page = `${page.slice(0, toolbarStart)}<details class="board-filters"><summary><span>Filters</span><span>${activeFilterCount ? `${activeFilterCount} active` : 'Refine results'} <b>＋</b></span></summary>${toolbar}</details>${page.slice(resultsStart)}`;
   }
-  return page;
+  return page.replace('<main class="board-main">', '<main class="board-main"><div class="board-view-switch"><span>Project library</span><button type="button" class="text-button" data-board-mode="feed">← Back to feed</button></div>');
 }
+
+function boardGroupVisibilityLabel(group) {
+  if (group.visibility === 'private') return 'Private';
+  if (group.visibility === 'circle') return 'Application circle';
+  return 'Open group';
+}
+
+function boardFeedPost(post, group, replies) {
+  const postReplies = replies.filter((reply) => reply.postId === post.id);
+  return `<article class="board-post"><div class="board-post-topline"><div><strong>${escapeHtml(post.ownerUsername || 'Member')}</strong><span>in ${escapeHtml(group?.name || 'Group')}</span></div><time>${escapeHtml(new Date(post.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</time></div><p class="board-post-body">${escapeHtml(post.body)}</p>${post.snippet ? `<pre class="board-post-snippet"><code>${escapeHtml(post.snippet)}</code></pre>` : ''}${post.repoUrl ? `<a class="board-post-link" href="${escapeHtml(post.repoUrl)}" target="_blank" rel="noreferrer">Open linked project ↗</a>` : ''}<div class="board-post-replies">${postReplies.map((reply) => `<div class="board-reply"><strong>${escapeHtml(reply.ownerUsername || 'Member')}</strong><p>${escapeHtml(reply.body)}</p></div>`).join('')}</div>${group?.isMember ? `<form class="board-reply-form" data-board-reply-form="${escapeHtml(post.id)}"><input name="body" required maxlength="1000" placeholder="Reply to this post…"><button class="text-button" type="submit">Reply</button></form>` : ''}</article>`;
+}
+
+function boardFeedPage() {
+  const groups = Array.isArray(boardSocial.groups) ? boardSocial.groups : [];
+  const posts = Array.isArray(boardSocial.posts) ? boardSocial.posts : [];
+  const replies = Array.isArray(boardSocial.replies) ? boardSocial.replies : [];
+  const selectedGroup = boardFeedGroupId === 'all' ? null : groups.find((group) => group.id === boardFeedGroupId);
+  if (boardFeedGroupId !== 'all' && !selectedGroup) boardFeedGroupId = 'all';
+  const memberGroups = groups.filter((group) => group.isMember);
+  const discoverGroups = groups.filter((group) => !group.isMember);
+  const groupButton = (group) => `<button type="button" class="board-group-link ${selectedGroup?.id === group.id ? 'is-active' : ''}" data-board-group="${escapeHtml(group.id)}"><span><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(boardGroupVisibilityLabel(group))}</small></span><em>${group.memberCount || 0}</em></button>`;
+  const feedPosts = (selectedGroup ? posts.filter((post) => post.groupId === selectedGroup.id) : posts).map((post) => boardFeedPost(post, groups.find((group) => group.id === post.groupId), replies)).join('');
+  const memberChecks = members.filter((member) => member.id !== currentUser.id).map((member) => `<label class="board-check"><input type="checkbox" name="memberIds" value="${escapeHtml(member.id)}"><span>${escapeHtml(member.username)}</span></label>`).join('');
+  const selectedCanPost = selectedGroup?.isMember;
+  return `<section class="board-page board-social-page"><div class="board-social-layout"><aside class="board-social-sidebar"><div class="board-social-sidebar-top"><span class="editorial-kicker">Project board</span><h2>People, projects, in progress.</h2><p>Share a useful step with the groups who can help move it forward.</p></div><div class="board-social-section"><button type="button" class="board-all-groups ${!selectedGroup ? 'is-active' : ''}" data-board-group="all">All group posts <strong>${posts.length}</strong></button><span class="board-social-label">Your groups</span>${memberGroups.length ? memberGroups.map(groupButton).join('') : '<p class="board-sidebar-empty">Create or join a group to shape your feed.</p>'}</div><div class="board-social-section"><span class="board-social-label">Discover</span>${discoverGroups.length ? discoverGroups.map((group) => `<div class="board-discover-row"><div><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(boardGroupVisibilityLabel(group))} · ${group.memberCount || 0} members</small></div>${group.pending ? '<span class="board-pending-label">Applied</span>' : `<button type="button" class="text-button" data-board-join-group="${escapeHtml(group.id)}">${group.visibility === 'circle' ? 'Apply' : 'Join'}</button>`}</div>`).join('') : '<p class="board-sidebar-empty">No open groups yet.</p>'}</div><details class="board-create-group"><summary>＋ Create a group</summary><form id="board-group-form"><label>Group name<input name="name" required maxlength="80" placeholder="e.g. Game builders"></label><label>Description<textarea name="description" maxlength="240" placeholder="What belongs here?"></textarea></label><label>Access<select name="visibility"><option value="public">Open — anyone can join</option><option value="circle">Circle — apply to join</option><option value="private">Private — invited members only</option></select></label><fieldset class="board-share-people"><legend>Initial members</legend>${memberChecks || '<span class="field-note">You can add people when more accounts are available.</span>'}</fieldset><button class="button" type="submit">Create group</button></form></details></aside><main class="board-feed-main"><div class="board-feed-heading"><div><span class="editorial-kicker">${selectedGroup ? escapeHtml(boardGroupVisibilityLabel(selectedGroup)) : 'All groups'}</span><h2>${selectedGroup ? escapeHtml(selectedGroup.name) : 'The project feed.'}</h2><p>${selectedGroup ? escapeHtml(selectedGroup.description || 'A focused room for sharing useful work.') : 'Project ideas, snippets, and the next useful conversation.'}</p></div><div class="board-feed-actions"><button type="button" class="board-view-tab is-active">Feed</button><button type="button" class="board-view-tab" data-board-mode="library">Project library</button></div></div>${selectedGroup?.isOwner && selectedGroup.pendingApplicants?.length ? `<div class="board-membership-review"><strong>Join requests</strong>${selectedGroup.pendingApplicants.map((applicant) => `<span>${escapeHtml(applicant.username)} <button type="button" class="text-button" data-board-approve-group="${escapeHtml(selectedGroup.id)}" data-board-approve-user="${escapeHtml(applicant.id)}">Approve</button></span>`).join('')}</div>` : ''}${selectedCanPost ? `<form class="board-post-composer" id="board-post-form"><textarea name="body" required maxlength="2000" placeholder="Share a project update, an idea, or a useful snippet…"></textarea><div class="board-post-composer-row"><input name="repoUrl" type="url" placeholder="Optional project link"><button type="button" class="text-button" data-board-toggle-snippet>＋ Code snippet</button><button type="submit" class="button">Post</button></div><textarea name="snippet" class="board-snippet-input" hidden maxlength="1200" placeholder="Paste a small, focused code snippet"></textarea></form>` : selectedGroup ? `<div class="board-join-prompt">${selectedGroup.pending ? 'Your request is waiting for approval.' : 'Join this group to post and reply.'}</div>` : ''}<div class="board-feed-meta"><span>${feedPosts ? `${feedPosts.match(/<article class="board-post/g)?.length || 0} posts` : 'No posts yet'}</span><span>Newest first</span></div><div class="board-feed-list">${feedPosts || '<div class="board-feed-empty"><span class="board-empty-icon">✦</span><h3>Start the conversation.</h3><p>Share a project update, a code snippet, or the next question worth asking.</p></div>'}</div></main></div></section>`;
+}
+
+function boardPage() { return boardMode === 'feed' ? boardFeedPage() : boardLibraryPage(); }
 
 function securitySettings(message = '') {
   return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Manage the details you use to sign in.</p></div><form class="settings-card security-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<section class="security-section"><div><span class="eyebrow">Account details</span><h3>Username</h3><p>This is how you identify yourself when signing in.</p></div><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label></section><section class="security-section"><div><span class="eyebrow">Password</span><h3>Change your password</h3><p>Use at least four characters. You can leave the new password blank to keep the current one.</p></div><div class="security-fields"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label></div></section><div class="security-actions"><button class="button" type="submit">Save changes</button></div></form></section>`;
@@ -713,6 +747,17 @@ async function queueBoardSharedProjects() {
   }
 }
 
+async function queueBoardSocial() {
+  try {
+    const next = await loadBoardSocial();
+    if (JSON.stringify(next) === JSON.stringify(boardSocial)) return;
+    boardSocial = { groups: Array.isArray(next.groups) ? next.groups : [], posts: Array.isArray(next.posts) ? next.posts : [], replies: Array.isArray(next.replies) ? next.replies : [] };
+    if (root.dataset.minimalView === 'board' && boardMode === 'feed') renderMinimal('board');
+  } catch {
+    // Older local servers can omit the optional social-board endpoint.
+  }
+}
+
 function bindBoardGithubEvents() {
   const activeSlide = root.querySelector(`[data-minimal-slide="${root.dataset.minimalView === 'account' ? 'account' : 'board'}"]`) || root;
   activeSlide.querySelector('#board-github-form')?.addEventListener('submit', async (event) => {
@@ -730,8 +775,25 @@ function bindBoardGithubEvents() {
   activeSlide.querySelectorAll('[data-board-unlink]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.githubProfiles = board.githubProfiles.filter((profile) => profile.username !== button.dataset.boardUnlink); delete boardRepoCache[button.dataset.boardUnlink]; await saveState(state); renderMinimal('account', '', 'board'); }));
 }
 
+async function refreshBoardSocial() {
+  try { boardSocial = await loadBoardSocial(); } catch (error) { window.alert(error.message); return; }
+  if (root.dataset.minimalView === 'board') renderMinimal('board');
+}
+
+function bindBoardSocialEvents() {
+  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-group]').forEach((button) => button.addEventListener('click', () => { boardFeedGroupId = button.dataset.boardGroup || 'all'; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-join-group]').forEach((button) => button.addEventListener('click', async () => { try { await boardSocialAction('join-group', { groupId: button.dataset.boardJoinGroup }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } }));
+  document.querySelectorAll('[data-board-approve-group]').forEach((button) => button.addEventListener('click', async () => { try { await boardSocialAction('approve-group-member', { groupId: button.dataset.boardApproveGroup, userId: button.dataset.boardApproveUser }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } }));
+  document.querySelector('#board-group-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form)); values.memberIds = [...form.querySelectorAll('input[name="memberIds"]:checked')].map((input) => input.value); try { const result = await boardSocialAction('create-group', values); if (result.groupId) boardFeedGroupId = result.groupId; await refreshBoardSocial(); } catch (error) { window.alert(error.message); } });
+  document.querySelector('#board-post-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); try { await boardSocialAction('create-post', { groupId: boardFeedGroupId, ...values }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } });
+  document.querySelectorAll('[data-board-reply-form]').forEach((form) => form.addEventListener('submit', async (event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(form)); try { await boardSocialAction('create-reply', { postId: form.dataset.boardReplyForm, body: values.body }); await refreshBoardSocial(); } catch (error) { window.alert(error.message); } }));
+  document.querySelector('[data-board-toggle-snippet]')?.addEventListener('click', (event) => { const input = document.querySelector('.board-snippet-input'); if (!input) return; input.toggleAttribute('hidden'); event.currentTarget.textContent = input.hidden ? '＋ Code snippet' : '− Hide snippet'; if (!input.hidden) input.focus(); });
+}
+
 function bindBoardEvents() {
   bindBoardGithubEvents();
+  document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; renderMinimal('board'); }));
   document.querySelectorAll('[data-board-folder]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = button.dataset.boardFolder; renderMinimal('board'); }));
   document.querySelector('[data-board-add-folder]')?.addEventListener('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
   document.querySelectorAll('[data-board-side-project]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = 'all'; boardFilters.query = button.dataset.boardSideProject || ''; renderMinimal('board'); }));
@@ -810,7 +872,7 @@ function bindMinimalEvents(view, page = 'profile') {
     }));
     minimalGlobalEventsBound = true;
   }
-  if (view === 'board') bindBoardEvents();
+  if (view === 'board') { if (boardMode === 'feed') bindBoardSocialEvents(); else bindBoardEvents(); }
   if (view === 'account' && page === 'board') bindBoardGithubEvents();
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
@@ -869,13 +931,12 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     root.innerHTML = `${header}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${aboutSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
-    if (view === 'board') { queueBoardProfileLoads(); queueBoardSharedProjects(); }
+    if (view === 'board') { queueBoardSocial(); if (boardMode === 'library') { queueBoardProfileLoads(); queueBoardSharedProjects(); } }
   } else if (view === 'board') {
     const boardSlide = root.querySelector('[data-minimal-slide="board"]');
     if (boardSlide) boardSlide.innerHTML = boardPage();
-    bindBoardEvents();
-    queueBoardProfileLoads();
-    queueBoardSharedProjects();
+    if (boardMode === 'feed') { bindBoardSocialEvents(); queueBoardSocial(); }
+    else { bindBoardEvents(); queueBoardProfileLoads(); queueBoardSharedProjects(); }
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;

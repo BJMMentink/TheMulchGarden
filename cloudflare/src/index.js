@@ -34,7 +34,7 @@ const initialState = () => ({
   todos: DEFAULT_TODOS.map((todo) => ({ ...todo, tags: [...todo.tags] })),
   feedback: [],
   memories: [],
-  board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [] },
+  board: { githubProfiles: [], folders: [{ id: 'board-folder-inbox', name: 'Inbox' }], projects: [], groups: [], posts: [], replies: [] },
   games: { getToKnowMe: initialGameState() },
 });
 
@@ -157,6 +157,14 @@ async function appState(request, env, user) {
   return json(body);
 }
 
+function normalizeSocialBoard(stored) {
+  stored.board = stored.board || {};
+  stored.board.groups = Array.isArray(stored.board.groups) ? stored.board.groups : [];
+  stored.board.posts = Array.isArray(stored.board.posts) ? stored.board.posts : [];
+  stored.board.replies = Array.isArray(stored.board.replies) ? stored.board.replies : [];
+  return stored;
+}
+
 async function boardProjects(env, user) {
   const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
   const projects = [];
@@ -170,6 +178,57 @@ async function boardProjects(env, user) {
   }
   projects.sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')));
   return json({ projects });
+}
+
+async function boardSocial(env, user) {
+  const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
+  const rows = result.results || []; const groups = []; const posts = []; const replies = [];
+  for (const row of rows) {
+    let stored; try { stored = normalizeSocialBoard(JSON.parse(row.state_json)); } catch { stored = normalizeSocialBoard({}); }
+    for (const group of stored.board.groups) {
+      const memberIds = Array.isArray(group.memberIds) ? group.memberIds : [];
+      if (row.ownerId !== user.id && !['public', 'circle'].includes(group.visibility) && !memberIds.includes(user.id)) continue;
+      const pendingIds = Array.isArray(group.pendingIds) ? group.pendingIds : [];
+      const applicants = row.ownerId === user.id ? rows.filter((candidate) => pendingIds.includes(candidate.ownerId)).map((candidate) => ({ id: candidate.ownerId, username: candidate.username })) : [];
+      groups.push({ ...group, ownerId: row.ownerId, ownerUsername: group.ownerUsername || row.username, isOwner: row.ownerId === user.id, isMember: row.ownerId === user.id || memberIds.includes(user.id), pending: pendingIds.includes(user.id), memberCount: memberIds.length, pendingApplicants: applicants });
+    }
+    for (const post of stored.board.posts) posts.push({ ...post, ownerId: row.ownerId, ownerUsername: post.ownerUsername || row.username });
+    for (const reply of stored.board.replies) replies.push({ ...reply, ownerId: row.ownerId, ownerUsername: reply.ownerUsername || row.username });
+  }
+  const visibleGroupIds = new Set(groups.filter((group) => group.isMember).map((group) => group.id));
+  groups.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+  posts.filter((post) => visibleGroupIds.has(post.groupId)).sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+  replies.sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')));
+  return json({ groups, posts: posts.filter((post) => visibleGroupIds.has(post.groupId)), replies: replies.filter((reply) => visibleGroupIds.has(reply.groupId)) });
+}
+
+async function boardSocialAction(request, env, user) {
+  const body = await readJson(request); const action = String(body.action || ''); const now = new Date().toISOString();
+  const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
+  const rows = result.results || [];
+  const parsed = rows.map((row) => { let stored; try { stored = normalizeSocialBoard(JSON.parse(row.state_json)); } catch { stored = normalizeSocialBoard({}); } return { row, stored }; });
+  const foundGroup = (groupId) => { for (const item of parsed) { const group = item.stored.board.groups.find((candidate) => candidate.id === groupId); if (group) return { ...item, group }; } return null; };
+  const save = (ownerId, stored) => env.DB.prepare('UPDATE user_state SET state_json = ?, updated_at = ? WHERE user_id = ?').bind(JSON.stringify(stored), now, ownerId).run();
+  if (action === 'create-group') {
+    const name = String(body.name || '').trim(); if (!name) throw new Error('Group name is required.');
+    const visibility = ['public', 'private', 'circle'].includes(body.visibility) ? body.visibility : 'public';
+    const own = parsed.find((item) => item.row.ownerId === user.id); if (!own) throw new Error('Account state is unavailable.');
+    const memberIds = [...new Set([user.id, ...(Array.isArray(body.memberIds) ? body.memberIds.map(String) : [])])]; const groupId = userId(); own.stored.board.groups.unshift({ id: groupId, name: name.slice(0, 80), description: String(body.description || '').trim().slice(0, 240), visibility, ownerId: user.id, ownerUsername: user.username, memberIds, pendingIds: [], createdAt: now, updatedAt: now }); await save(user.id, own.stored); return json({ ok: true, groupId });
+  }
+  if (action === 'join-group') {
+    const found = foundGroup(String(body.groupId || '')); if (!found) throw Object.assign(new Error('Group not found.'), { status: 404 }); if (found.row.ownerId === user.id || found.group.memberIds?.includes(user.id)) return json({ ok: true }); if (found.group.visibility === 'private') throw Object.assign(new Error('This private group is invite-only.'), { status: 403 });
+    found.group.memberIds = Array.isArray(found.group.memberIds) ? found.group.memberIds : []; found.group.pendingIds = Array.isArray(found.group.pendingIds) ? found.group.pendingIds : []; if (found.group.visibility === 'circle') { if (!found.group.pendingIds.includes(user.id)) found.group.pendingIds.push(user.id); } else if (!found.group.memberIds.includes(user.id)) found.group.memberIds.push(user.id); found.group.updatedAt = now; await save(found.row.ownerId, found.stored); return json({ ok: true });
+  }
+  if (action === 'approve-group-member') {
+    const found = foundGroup(String(body.groupId || '')); if (!found || found.row.ownerId !== user.id) throw Object.assign(new Error('Only the group owner can approve members.'), { status: 403 }); const applicantId = String(body.userId || ''); found.group.pendingIds = (found.group.pendingIds || []).filter((id) => id !== applicantId); found.group.memberIds = Array.isArray(found.group.memberIds) ? found.group.memberIds : []; if (!found.group.memberIds.includes(applicantId)) found.group.memberIds.push(applicantId); found.group.updatedAt = now; await save(user.id, found.stored); return json({ ok: true });
+  }
+  if (action === 'create-post') {
+    const found = foundGroup(String(body.groupId || '')); if (!found || !(found.row.ownerId === user.id || found.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before posting.'), { status: 403 }); const text = String(body.body || '').trim(); if (!text) throw new Error('Post text is required.'); const own = parsed.find((item) => item.row.ownerId === user.id); own.stored.board.posts.unshift({ id: userId(), groupId: found.group.id, body: text.slice(0, 2000), repoUrl: String(body.repoUrl || '').trim().slice(0, 500), snippet: String(body.snippet || '').trim().slice(0, 1200), ownerId: user.id, ownerUsername: user.username, createdAt: now, updatedAt: now }); await save(user.id, own.stored); return json({ ok: true });
+  }
+  if (action === 'create-reply') {
+    const postId = String(body.postId || ''); let post = null; for (const item of parsed) { const candidate = item.stored.board.posts.find((entry) => entry.id === postId); if (candidate) { post = candidate; break; } } if (!post) throw Object.assign(new Error('Post not found.'), { status: 404 }); const found = foundGroup(post.groupId); if (!found || !(found.row.ownerId === user.id || found.group.memberIds?.includes(user.id))) throw Object.assign(new Error('Join this group before replying.'), { status: 403 }); const text = String(body.body || '').trim(); if (!text) throw new Error('Reply text is required.'); const own = parsed.find((item) => item.row.ownerId === user.id); own.stored.board.replies.push({ id: userId(), postId, groupId: found.group.id, body: text.slice(0, 1000), ownerId: user.id, ownerUsername: user.username, createdAt: now }); await save(user.id, own.stored); return json({ ok: true });
+  }
+  throw new Error('Unknown board action.');
 }
 
 async function removeBoardProject(env, user, projectId) {
@@ -260,6 +319,8 @@ async function route(request, env) {
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
   if (request.method === 'GET' && url.pathname === '/api/board/projects') return boardProjects(env, user);
+  if (request.method === 'GET' && url.pathname === '/api/board/social') return boardSocial(env, user);
+  if (request.method === 'POST' && url.pathname === '/api/board/social') return boardSocialAction(request, env, user);
   if (request.method === 'DELETE' && url.pathname.startsWith('/api/board/projects/')) return removeBoardProject(env, user, decodeURIComponent(url.pathname.split('/').pop()));
   if (request.method === 'GET' && url.pathname === '/api/wordle/today') return dailyWordle();
   if (url.pathname === '/api/chat/messages' && ['GET', 'POST'].includes(request.method)) return chatMessages(request, env, user);

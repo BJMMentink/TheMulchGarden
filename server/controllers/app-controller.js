@@ -2,6 +2,8 @@ export function createAppController(repository, auth, config) {
   return {
     async getState(user) { return repository.getState(user.id); },
     async listBoardProjects(user) { return repository.listBoardProjects(user); },
+    async listBoardSocial(user) { return repository.listBoardSocial(user); },
+    async boardSocialAction(user, body) { return repository.boardSocialAction(user, body); },
     async removeBoardProject(user, projectId) { return repository.removeBoardProject(projectId, user); },
     async listMembers() { return repository.listPublicUsers(); },
     async listChatMessages() { return repository.listChatMessages(config.chatMaxMessages); },
