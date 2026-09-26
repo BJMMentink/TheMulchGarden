@@ -278,6 +278,20 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid color-mix(i
 .request-screenshot { display: grid; grid-template-columns: 5rem 1fr; margin-top: 0.8rem; align-items: center; gap: 0.75rem; color: #f0aeb5; font-size: 0.78rem; font-weight: 700; }
 .request-screenshot img { width: 5rem; height: 3.3rem; border-radius: 0.4rem; object-fit: cover; }
 .request-empty { display: grid; min-height: 14rem; place-items: center; align-content: center; gap: 0.5rem; border: 1px dashed rgba(255,255,255,0.09); border-radius: 0.9rem; color: var(--color-text-muted); }
+.requests-page { box-sizing: border-box; height: 100svh; min-height: 0; overflow: hidden; padding-top: calc(var(--editorial-nav-overlap) + 1.5rem); padding-bottom: 1.5rem; }
+.request-focus { display: grid; grid-template-columns: minmax(18rem, 0.8fr) minmax(28rem, 1.2fr); max-width: 72rem; height: 100%; margin: auto; align-items: center; gap: clamp(2rem, 6vw, 6rem); }
+.request-focus .requests-heading { display: grid; margin: 0; align-content: center; align-items: start; }
+.request-focus .request-kind-switch { margin-top: 1.5rem; }
+.request-focus .request-form { position: static; max-height: 100%; overflow: hidden; }
+.request-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.request-scope { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; border: 0; padding: 0; }
+.request-scope legend { grid-column: 1 / -1; margin-bottom: 0.35rem; color: #e8dadd; font-size: 0.82rem; font-weight: 700; }
+.request-scope label { display: flex; min-height: 3rem; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.09); border-radius: 0.6rem; padding: 0.65rem; background: #0d0d10; color: var(--color-text-muted); cursor: pointer; }
+.request-scope label.is-active { border-color: rgba(240,174,181,0.45); background: rgba(116,31,48,0.22); color: #fff1f2; }
+.request-scope input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.request-review-link { margin-top: 0.8rem; justify-self: start; }
+.board-requests-main { min-height: 0; overflow: hidden; }
+.board-request-list { min-height: 0; overflow: auto; padding-right: 0.35rem; }
 #app[data-minimal-view]:not([data-minimal-view="landing"]) .editorial-hero,
 #app[data-minimal-view]:not([data-minimal-view="landing"]) .editorial-hero::before,
 #app[data-minimal-view]:not([data-minimal-view="landing"]) .editorial-hero::after,
@@ -785,6 +799,10 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
 @media (max-width: 52rem) {
   .requests-heading { align-items: start; flex-direction: column; }
   .requests-layout { grid-template-columns: 1fr; }
+  .request-focus { grid-template-columns: 1fr; align-content: start; gap: 1rem; }
+  .request-focus .requests-heading { grid-template-columns: 1fr auto; gap: 1rem; }
+  .request-focus .requests-heading > div:first-child { grid-column: 1 / -1; }
+  .request-focus .request-kind-switch { margin-top: 0; }
   .request-form { position: static; }
   .editorial-hero { grid-template-columns: 1fr; min-height: max(40rem, calc(100svh + var(--editorial-nav-overlap) - var(--editorial-nav-height))); gap: clamp(2rem, 8vw, 3.5rem); padding-block: clamp(5.5rem, 12vh, 8rem) clamp(4rem, 10vh, 7rem); }
   .editorial-loop { width: min(48vw, 16rem); justify-self: center; }
@@ -826,7 +844,10 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
 }
 
 @media (max-width: 37.99rem) {
-  .requests-page { padding-inline: 1rem; padding-top: calc(var(--editorial-nav-overlap) + 2.5rem); }
+  .requests-page { height: auto; min-height: 100svh; overflow: visible; padding-inline: 1rem; padding-top: calc(var(--editorial-nav-overlap) + 2.5rem); }
+  .request-focus { display: block; height: auto; }
+  .request-focus .request-form { margin-top: 1rem; max-height: none; overflow: visible; }
+  .request-form-grid { grid-template-columns: 1fr; }
   .request-kind-switch { width: 100%; }
   .request-kind-switch button { flex: 1; }
   .request-card footer { align-items: start; flex-direction: column; }
