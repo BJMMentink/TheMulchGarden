@@ -934,13 +934,16 @@ function rememberedMinimalAccountPage() {
 function updateMinimalNavigation() {
   const view = root.dataset.minimalView || 'landing';
   const nav = root.querySelector('.editorial-nav nav');
-  const activeSelector = view === 'landing' ? '[data-minimal-home]' : `[data-minimal-${view}]`;
+  const workspaceViews = ['board', 'requests', 'signal'];
+  const activeSelector = workspaceViews.includes(view) ? '[data-workspace-summary]' : view === 'account' ? '[data-account-summary]' : view === 'landing' ? '[data-minimal-home]' : `[data-minimal-${view}]`;
   const activeLink = nav?.querySelector(activeSelector);
   if (nav && activeLink) {
-    nav.style.setProperty('--nav-indicator-left', `${activeLink.offsetLeft}px`);
+    nav.style.setProperty('--nav-indicator-left', `${activeLink.closest('.editorial-nav-menu')?.offsetLeft ?? activeLink.offsetLeft}px`);
     nav.style.setProperty('--nav-indicator-width', `${activeLink.offsetWidth}px`);
   }
   root.querySelectorAll('[data-minimal-view-link]').forEach((link) => link.classList.toggle('is-active', link.dataset.minimalViewLink === view));
+  root.querySelector('[data-workspace-summary]')?.classList.toggle('is-active', workspaceViews.includes(view));
+  root.querySelector('[data-account-summary]')?.classList.toggle('is-active', view === 'account');
 }
 
 function updateMinimalViewportHeight() {
@@ -1143,6 +1146,7 @@ function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
     document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
+    document.querySelectorAll('[data-minimal-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.minimalAccountPage)));
     document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
     document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
@@ -1242,6 +1246,7 @@ function bindSupportReviewEvents() {
 }
 
 function renderMinimal(view = rememberedMinimalView(), message = '', page = rememberedMinimalAccountPage()) {
+  root.querySelectorAll('.editorial-nav-menu[open]').forEach((menu) => menu.removeAttribute('open'));
   if (guestMode) {
     view = ['portfolio', 'about'].includes(view) ? view : 'landing';
     page = 'profile';
@@ -1268,14 +1273,15 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   root.dataset.boardNavExpanded = view === 'board' ? String(boardNavExpanded) : 'false';
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
-    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-board data-minimal-view-link="board">Board</button><button class="editorial-nav-link" data-minimal-requests data-minimal-view-link="requests">Requests</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-account data-minimal-view-link="account">Account</button><button class="editorial-nav-link" data-minimal-signal data-minimal-view-link="signal">Signal</button></nav>';
+    const nav = guestMode ? '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>' : '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><details class="editorial-nav-menu editorial-workspace-menu"><summary class="editorial-nav-link" data-workspace-summary>Workspace <span aria-hidden="true">⌄</span></summary><div class="editorial-nav-popover"><span class="editorial-popover-label">Workspace</span><button type="button" data-minimal-board><strong>Board</strong><small>Projects, groups, and ideas</small></button><button type="button" data-minimal-requests><strong>Requests</strong><small>Features and bug reports</small></button><button type="button" data-minimal-signal><strong>Signal</strong><small>Your private activity</small></button></div></details></nav>';
     const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
     const ctaLabel = guestMode ? 'Exit' : 'Log out';
+    const accountMenu = guestMode ? `<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>` : `<details class="editorial-nav-menu editorial-account-menu"><summary class="editorial-account-trigger" data-account-summary aria-label="Open account menu"><span>${escapeHtml(profileInitials())}</span></summary><div class="editorial-nav-popover"><span class="editorial-popover-label">${escapeHtml(ensureProfile().displayName || currentUser.username)}</span><button type="button" data-minimal-account><strong>Profile</strong><small>Your public details</small></button><button type="button" data-minimal-account-page="board"><strong>Board setup</strong><small>GitHub connections</small></button><button type="button" data-minimal-account-page="security"><strong>Security</strong><small>Sign-in and password</small></button><button type="button" class="editorial-popover-logout" data-minimal-logout><strong>Log out</strong></button></div></details>`;
     const mobilePrivateNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>';
     const mobileBoardNav = guestMode ? '' : '<button class="editorial-mobile-link" data-minimal-board>Board</button>';
     const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
     const brandLabel = view === 'board' ? 'Toggle Board navigation' : 'The Mulch Garden home';
-    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home aria-label="${brandLabel}"${view === 'board' ? ` aria-expanded="${boardNavExpanded}"` : ''}><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>${menu}</div>${mobileNav}</header>`;
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home aria-label="${brandLabel}"${view === 'board' ? ` aria-expanded="${boardNavExpanded}"` : ''}><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}${accountMenu}${menu}</div>${mobileNav}</header>`;
     const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${renderPortfolioPage()}</section>`;
     const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${guestMode ? '' : boardPage()}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
