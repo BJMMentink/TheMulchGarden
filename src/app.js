@@ -484,7 +484,7 @@ function boardProjectsForUser(board) {
   return [...ownProjects, ...boardSharedProjects.filter((project) => !ownIds.has(project.id))];
 }
 
-function boardPage() {
+function renderBoardPageLegacy() {
   const board = ensureBoardState();
   const repos = boardAllRepos(board).filter(boardMatches);
   const allProjects = boardProjectsForUser(board);
@@ -496,6 +496,10 @@ function boardPage() {
   const profileCards = board.githubProfiles.length ? board.githubProfiles.map((profile) => `<div class="board-profile-row"><span class="board-profile-mark">GH</span><div><strong>${escapeHtml(profile.username)}</strong><span>${(boardRepoCache[profile.username] || []).length || '—'} public repos loaded</span></div><button class="text-button" data-board-refresh="${escapeHtml(profile.username)}">Refresh</button><button class="text-button danger" data-board-unlink="${escapeHtml(profile.username)}">Unlink</button></div>`).join('') : '<p class="board-empty-copy">No profiles connected yet. A public profile URL is all this board needs.</p>';
   const memberChecks = members.filter((member) => member.id !== currentUser.id).map((member) => `<label class="board-check"><input type="checkbox" name="memberIds" value="${escapeHtml(member.id)}"><span>${escapeHtml(member.username)}</span></label>`).join('');
   return `<section class="board-page"><div class="board-layout"><aside class="board-sidebar"><div class="board-sidebar-heading"><span class="editorial-kicker">Project board / 004</span><h2>Shared work, clearly held.</h2><p>Link public GitHub work, keep ideas in folders, and decide who can see each project.</p></div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>Folders</span><button class="text-button" data-board-add-folder>＋</button></div><button class="board-folder-link ${boardFilters.folder === 'all' ? 'is-active' : ''}" data-board-folder="all"><span>All projects</span><strong>${allProjects.length + boardAllRepos(board).length}</strong></button>${board.folders.map((folder) => `<button class="board-folder-link ${boardFilters.folder === folder.id ? 'is-active' : ''}" data-board-folder="${escapeHtml(folder.id)}"><span>${escapeHtml(folder.name)}</span><strong>${allProjects.filter((project) => project.folderId === folder.id).length}</strong></button>`).join('')}</div><div class="board-sidebar-section"><div class="board-sidebar-label"><span>GitHub profiles</span><span class="board-count">${board.githubProfiles.length}/3</span></div>${profileCards}<form id="board-github-form" class="board-sidebar-form"><label>Public profile URL<input name="profileUrl" required placeholder="github.com/username" autocomplete="url"></label><button class="button button-quiet" type="submit" ${board.githubProfiles.length >= 3 ? 'disabled' : ''}>Link profile</button></form></div><div class="board-sidebar-note"><span class="editorial-kicker">Safety boundary</span><p>Mulch Garden only reads public repository metadata. It never receives GitHub passwords, tokens, or write access.</p></div>${currentUser.role === 'admin' ? '<div class="board-admin-note"><span class="editorial-kicker">Admin view</span><p>Moderation can hide or remove board entries. Removing a card never deletes the source repository on GitHub.</p></div>' : ''}</aside><main class="board-main"><div class="board-main-heading"><div><span class="editorial-kicker">A social project surface</span><h2>Projects with somewhere to go.</h2><p>Browse public repositories and collect the concepts worth sharing with the right people.</p></div><details class="board-compose"><summary><span>＋</span> Add a project</summary><form id="board-project-form"><label>Project name<input name="title" required maxlength="100" placeholder="A project, idea, or code base"></label><label>Source URL<input name="repoUrl" type="url" placeholder="https://github.com/…"></label><label>Note<textarea name="note" maxlength="500" placeholder="Why is this worth sharing?"></textarea></label><div class="board-form-grid"><label>Folder<select name="folderId">${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<input name="language" placeholder="JavaScript, Python…"></label></div><label>Topics<input name="topics" placeholder="agents, games, design"></label><label>Share with<select name="visibility"><option value="private">Private to me</option><option value="members">Specific people / groups</option><option value="all">All users</option></select></label><fieldset class="board-share-people"><legend>Specific people</legend>${memberChecks || '<span class="field-note">No other users are available yet.</span>'}</fieldset><label>Group names<input name="groupNames" placeholder="e.g. game builders, study group"></label><button class="button" type="submit">Add to board</button></form></details></div><div class="board-stats"><article><strong>${boardAllRepos(board).length}</strong><span>public repos loaded</span></article><article><strong>${allProjects.length}</strong><span>visible board projects</span></article><article><strong>${board.githubProfiles.length}/3</strong><span>GitHub profiles</span></article></div><div class="board-toolbar"><label class="board-search">Search board<input data-board-filter="query" value="${escapeHtml(boardFilters.query)}" placeholder="Search projects, users, topics…"></label><label>Folder<select data-board-filter="folder"><option value="all">All folders</option>${board.folders.map((folder) => `<option value="${escapeHtml(folder.id)}" ${boardFilters.folder === folder.id ? 'selected' : ''}>${escapeHtml(folder.name)}</option>`).join('')}</select></label><label>Language<select data-board-filter="language"><option value="all">All languages</option>${languages.map((language) => `<option value="${escapeHtml(language)}" ${boardFilters.language === language ? 'selected' : ''}>${escapeHtml(language)}</option>`).join('')}</select></label><label>Topic<select data-board-filter="topic"><option value="all">All topics</option>${topics.map((topic) => `<option value="${escapeHtml(topic)}" ${boardFilters.topic === topic ? 'selected' : ''}>${escapeHtml(topic)}</option>`).join('')}</select></label><label>User<select data-board-filter="owner"><option value="all">All users</option>${owners.map((owner) => `<option value="${escapeHtml(owner)}" ${boardFilters.owner === owner ? 'selected' : ''}>${escapeHtml(owner)}</option>`).join('')}</select></label></div><div class="board-results-heading"><span>${cards ? `${projects.length + repos.length} results` : 'No projects yet'}</span><span>Public metadata · curated by people</span></div><div class="board-grid">${cards || '<article class="board-empty-state"><span class="board-empty-icon">⌘</span><h3>Start with a public GitHub profile.</h3><p>Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.</p></article>'}</div></main></div></section>`;
+}
+
+function boardPage() {
+  return renderBoardPageLegacy().replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Link a public GitHub profile from Account → Board setup. Their repositories will appear here with search, language, topic, and user filters.');
 }
 
 function securitySettings(message = '') {
@@ -513,9 +517,22 @@ function profilePage(message = '') {
   return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Your profile</span><h2>Tell us about yourself.</h2><p>This information is private to your account and can be changed whenever you like.</p></div><form class="profile-card card" id="profile-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<div class="profile-identity"><div class="profile-photo-field"><button type="button" class="profile-photo-dropzone" data-avatar-trigger aria-label="Choose a profile picture"><span class="profile-avatar">${avatar}</span><span class="profile-photo-overlay">Change photo</span></button><input id="avatar-input" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="profile-photo-actions"><button type="button" class="text-button" data-avatar-trigger>Upload photo</button><button type="button" class="text-button danger" data-avatar-remove>Remove</button></div><span class="field-note">Drag an image here or choose one. It will be cropped neatly.</span></div></div><div class="profile-fields"><label>Display name<input name="displayName" maxlength="80" value="${escapeHtml(profile.displayName)}" placeholder="How should people see you?"></label><label>About you<textarea name="bio" maxlength="500" placeholder="A few words about yourself">${escapeHtml(profile.bio)}</textarea></label><label>Location<input name="location" maxlength="80" value="${escapeHtml(profile.location)}" placeholder="Optional"></label></div><button class="button" type="submit">Save profile</button></form></section>`;
 }
 
+function boardGithubSettings() {
+  const board = ensureBoardState();
+  const profileCards = board.githubProfiles.length
+    ? board.githubProfiles.map((profile) => `<div class="board-profile-row"><span class="board-profile-mark">GH</span><div><strong>${escapeHtml(profile.username)}</strong><span>${(boardRepoCache[profile.username] || []).length || '—'} public repos loaded</span></div><button class="text-button" data-board-refresh="${escapeHtml(profile.username)}">Refresh</button><button class="text-button danger" data-board-unlink="${escapeHtml(profile.username)}">Unlink</button></div>`).join('')
+    : '<p class="board-empty-copy">No profiles connected yet.</p>';
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Board setup</span><h2>Connect GitHub.</h2><p>Link up to three public profiles. Mulch Garden reads repository metadata only—never passwords, tokens, or write access.</p></div><section class="settings-card card account-github-card"><div class="account-section-heading"><div><span class="eyebrow">Public profiles</span><h3>${board.githubProfiles.length}/3 connected</h3></div><span class="field-note">Profile links stay in your account.</span></div><div class="account-github-list">${profileCards}</div><form id="board-github-form" class="account-github-form"><label>Public GitHub profile URL<input name="profileUrl" required placeholder="github.com/username" autocomplete="url"></label><button class="button button-quiet" type="submit" ${board.githubProfiles.length >= 3 ? 'disabled' : ''}>Link profile</button></form></section></section>`;
+}
+
+function boardSettingsPage() {
+  const isAdmin = currentUser.role === 'admin';
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Board settings</span><h2>Keep sharing clear.</h2><p>These controls stay with the people who need them instead of taking up space on the project board.</p></div><div class="account-settings-stack"><details class="settings-card card account-toggle" open><summary><span><span class="eyebrow">Safety boundaries</span><strong>Public metadata only</strong></span><span class="account-toggle-icon">＋</span></summary><div class="account-toggle-body"><p>Mulch Garden only reads public repository metadata from linked GitHub profiles. It never receives GitHub passwords, tokens, or write access, and removing a board card never deletes the source repository.</p></div></details>${isAdmin ? '<details class="settings-card card account-toggle"><summary><span><span class="eyebrow">Administrator tools</span><strong>Moderate shared work</strong></span><span class="account-toggle-icon">＋</span></summary><div class="account-toggle-body"><p>As an administrator, you can remove board entries from their cards. This removes the entry from Mulch Garden without changing the original GitHub repository.</p></div></details>' : ''}</div></section>`;
+}
+
 function accountPage(page = 'profile', message = '') {
   const profile = ensureProfile();
-  return `<section class="account-layout"><aside class="account-sidebar"><div><span class="eyebrow">Account</span><strong>${escapeHtml(profile.displayName || currentUser.username)}</strong></div><nav aria-label="Account pages"><button class="account-link ${page === 'profile' ? 'is-active' : ''}" data-account-page="profile">Your Profile</button><button class="account-link ${page === 'security' ? 'is-active' : ''}" data-account-page="security">Sign-in & security</button></nav></aside><div class="account-main">${page === 'security' ? securitySettings(message) : profilePage(message)}</div></section>`;
+  return `<section class="account-layout"><aside class="account-sidebar"><div><span class="eyebrow">Account</span><strong>${escapeHtml(profile.displayName || currentUser.username)}</strong></div><nav aria-label="Account pages"><button class="account-link ${page === 'profile' ? 'is-active' : ''}" data-account-page="profile">Your Profile</button><button class="account-link ${page === 'board' ? 'is-active' : ''}" data-account-page="board">Board setup</button><button class="account-link ${page === 'security' ? 'is-active' : ''}" data-account-page="security">Sign-in & security</button></nav></aside><div class="account-main">${page === 'security' ? securitySettings(message) : page === 'board' ? `${boardGithubSettings()}${boardSettingsPage()}` : profilePage(message)}</div></section>`;
 }
 
 function ensureProfile() {
@@ -576,7 +593,7 @@ function rememberMinimalView(view, page) {
 function rememberedMinimalAccountPage() {
   try {
     const page = localStorage.getItem(minimalStorageKey(MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX));
-    return ['profile', 'security'].includes(page) ? page : 'profile';
+    return ['profile', 'security', 'board'].includes(page) ? page : 'profile';
   } catch {
     return 'profile';
   }
@@ -638,8 +655,9 @@ async function queueBoardSharedProjects() {
   }
 }
 
-function bindBoardEvents() {
-  document.querySelector('#board-github-form')?.addEventListener('submit', async (event) => {
+function bindBoardGithubEvents() {
+  const activeSlide = root.querySelector(`[data-minimal-slide="${root.dataset.minimalView === 'account' ? 'account' : 'board'}"]`) || root;
+  activeSlide.querySelector('#board-github-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const board = ensureBoardState();
     const profile = boardProfileUrl(new FormData(event.currentTarget).get('profileUrl'));
@@ -648,10 +666,14 @@ function bindBoardEvents() {
     if (board.githubProfiles.length >= 3) { window.alert('You can link up to three GitHub profiles.'); return; }
     board.githubProfiles.push({ ...profile, addedAt: new Date().toISOString() });
     await saveState(state);
-    try { await loadBoardProfile(profile.username); renderMinimal('board'); } catch (error) { renderMinimal('board'); window.alert(error.message); }
+    try { await loadBoardProfile(profile.username); renderMinimal(root.dataset.minimalView === 'board' ? 'board' : 'account', '', root.dataset.minimalView === 'board' ? 'profile' : 'board'); } catch (error) { renderMinimal('account', '', 'board'); window.alert(error.message); }
   });
-  document.querySelectorAll('[data-board-refresh]').forEach((button) => button.addEventListener('click', async () => { try { await loadBoardProfile(button.dataset.boardRefresh); renderMinimal('board'); } catch (error) { window.alert(error.message); } }));
-  document.querySelectorAll('[data-board-unlink]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.githubProfiles = board.githubProfiles.filter((profile) => profile.username !== button.dataset.boardUnlink); delete boardRepoCache[button.dataset.boardUnlink]; await saveState(state); renderMinimal('board'); }));
+  activeSlide.querySelectorAll('[data-board-refresh]').forEach((button) => button.addEventListener('click', async () => { try { await loadBoardProfile(button.dataset.boardRefresh); renderMinimal('account', '', 'board'); } catch (error) { window.alert(error.message); } }));
+  activeSlide.querySelectorAll('[data-board-unlink]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.githubProfiles = board.githubProfiles.filter((profile) => profile.username !== button.dataset.boardUnlink); delete boardRepoCache[button.dataset.boardUnlink]; await saveState(state); renderMinimal('account', '', 'board'); }));
+}
+
+function bindBoardEvents() {
+  bindBoardGithubEvents();
   document.querySelectorAll('[data-board-folder]').forEach((button) => button.addEventListener('click', () => { boardFilters.folder = button.dataset.boardFolder; renderMinimal('board'); }));
   document.querySelector('[data-board-add-folder]')?.addEventListener('click', async () => { const name = window.prompt('Folder name', 'New folder')?.trim(); if (!name) return; const board = ensureBoardState(); board.folders.push({ id: `board-folder-${Date.now()}`, name: name.slice(0, 40) }); await saveState(state); renderMinimal('board'); });
   document.querySelectorAll('[data-board-filter]').forEach((input) => input.addEventListener(input.tagName === 'INPUT' ? 'input' : 'change', () => { boardFilters[input.dataset.boardFilter] = input.value; renderMinimal('board'); }));
@@ -714,6 +736,7 @@ function bindMinimalEvents(view, page = 'profile') {
     minimalGlobalEventsBound = true;
   }
   if (view === 'board') bindBoardEvents();
+  if (view === 'account' && page === 'board') bindBoardGithubEvents();
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
   document.querySelectorAll('[data-avatar-trigger]').forEach((button) => button.addEventListener('click', () => avatarInput?.click()));
