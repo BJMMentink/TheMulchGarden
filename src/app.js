@@ -1167,7 +1167,7 @@ function bindMinimalEvents(view, page = 'profile') {
     }, true);
     document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
-    document.querySelectorAll('[data-minimal-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.minimalAccountPage)));
+    document.querySelectorAll('button[data-minimal-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.minimalAccountPage)));
     document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
     document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
     document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
