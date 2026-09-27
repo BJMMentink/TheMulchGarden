@@ -1154,6 +1154,7 @@ function bindMinimalEvents(view, page = 'profile') {
       if (target.hasAttribute('data-minimal-home')) {
         event.preventDefault(); event.stopPropagation();
         if (root.dataset.minimalView === 'board' && target.classList.contains('editorial-brand')) { boardNavExpanded = !boardNavExpanded; root.dataset.boardNavExpanded = String(boardNavExpanded); target.setAttribute('aria-expanded', String(boardNavExpanded)); target.setAttribute('aria-label', boardNavExpanded ? 'Collapse Board navigation' : 'Expand Board navigation'); return; }
+        if (target.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) { document.querySelector('[data-menu-toggle]')?.click(); return; }
         nextView = 'landing';
       } else if (target.hasAttribute('data-minimal-portfolio')) nextView = 'portfolio';
       else if (target.hasAttribute('data-minimal-about')) nextView = 'about';
@@ -1166,27 +1167,6 @@ function bindMinimalEvents(view, page = 'profile') {
       event.preventDefault(); event.stopPropagation(); renderMinimal(nextView, '', nextPage);
     }, true);
     document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
-    document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
-    document.querySelectorAll('button[data-minimal-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.minimalAccountPage)));
-    document.querySelectorAll('[data-minimal-portfolio]').forEach((button) => button.addEventListener('click', () => renderMinimal('portfolio')));
-    document.querySelectorAll('[data-minimal-about]').forEach((button) => button.addEventListener('click', () => renderMinimal('about')));
-    document.querySelectorAll('[data-minimal-board]').forEach((button) => button.addEventListener('click', () => renderMinimal('board')));
-    document.querySelectorAll('[data-minimal-requests]').forEach((button) => button.addEventListener('click', () => renderMinimal('requests')));
-    document.querySelectorAll('[data-minimal-signal]').forEach((button) => button.addEventListener('click', () => renderMinimal('signal')));
-    document.querySelectorAll('[data-minimal-home]').forEach((button) => button.addEventListener('click', () => {
-      if (root.dataset.minimalView === 'board' && button.classList.contains('editorial-brand')) {
-        boardNavExpanded = !boardNavExpanded;
-        root.dataset.boardNavExpanded = String(boardNavExpanded);
-        button.setAttribute('aria-expanded', String(boardNavExpanded));
-        button.setAttribute('aria-label', boardNavExpanded ? 'Collapse Board navigation' : 'Expand Board navigation');
-        return;
-      }
-      if (button.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) {
-        document.querySelector('[data-menu-toggle]')?.click();
-        return;
-      }
-      renderMinimal('landing');
-    }));
     document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => {
       if (adminSessionUser && adminPreviewMode === 'guest') { switchAdminPreview('admin'); return; }
       if (guestMode) {
