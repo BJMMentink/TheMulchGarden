@@ -730,7 +730,7 @@ function boardSidebarPage(board, allProjects) {
 function boardLibraryPage() {
   const board = ensureBoardState();
   const allProjects = boardProjectsForUser(board);
-  let page = renderBoardPageLegacy().replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Link a public GitHub profile from Account → Board setup. Their repositories will appear here with search, language, topic, and user filters.');
+  let page = renderBoardPageLegacy().replace('Start with a public GitHub profile.', 'No projects here yet.').replace('Link up to three profiles from the left. Their public repositories will appear here with search, language, topic, and user filters.', 'Projects and repositories you add will appear here.');
   const sidebarStart = page.indexOf('<aside class="board-sidebar">');
   const sidebarEnd = page.indexOf('</aside>', sidebarStart);
   if (sidebarStart >= 0 && sidebarEnd >= 0) page = `${page.slice(0, sidebarStart)}${boardSidebarPage(board, allProjects)}${page.slice(sidebarEnd + '</aside>'.length)}`;
@@ -1004,7 +1004,9 @@ async function queueBoardSocial() {
 }
 
 function bindBoardGithubEvents() {
-  const activeSlide = root.querySelector(`[data-minimal-slide="${root.dataset.minimalView === 'account' ? 'account' : 'board'}"]`) || root;
+  if (root.dataset.minimalView !== 'account') return;
+  const activeSlide = root.querySelector('[data-minimal-slide="account"]');
+  if (!activeSlide) return;
   activeSlide.querySelector('#board-github-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const board = ensureBoardState();
@@ -1014,7 +1016,7 @@ function bindBoardGithubEvents() {
     if (board.githubProfiles.length >= 3) { window.alert('You can link up to three GitHub profiles.'); return; }
     board.githubProfiles.push({ ...profile, addedAt: new Date().toISOString() });
     await saveState(state);
-    try { await loadBoardProfile(profile.username); renderMinimal(root.dataset.minimalView === 'board' ? 'board' : 'account', '', root.dataset.minimalView === 'board' ? 'profile' : 'board'); } catch (error) { renderMinimal('account', '', 'board'); window.alert(error.message); }
+    try { await loadBoardProfile(profile.username); renderMinimal('account', '', 'board'); } catch (error) { renderMinimal('account', '', 'board'); window.alert(error.message); }
   });
   activeSlide.querySelectorAll('[data-board-refresh]').forEach((button) => button.addEventListener('click', async () => { try { await loadBoardProfile(button.dataset.boardRefresh); renderMinimal('account', '', 'board'); } catch (error) { window.alert(error.message); } }));
   activeSlide.querySelectorAll('[data-board-unlink]').forEach((button) => button.addEventListener('click', async () => { const board = ensureBoardState(); board.githubProfiles = board.githubProfiles.filter((profile) => profile.username !== button.dataset.boardUnlink); delete boardRepoCache[button.dataset.boardUnlink]; await saveState(state); renderMinimal('account', '', 'board'); }));
@@ -1074,7 +1076,6 @@ function openBoardRepo(repo) {
 }
 
 function bindBoardEvents() {
-  bindBoardGithubEvents();
   document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; if (boardMode !== 'library') boardRepoViewer = null; renderMinimal('board'); }));
   document.querySelectorAll('[data-board-open-repo]').forEach((card) => {
     const open = () => { const repo = boardAllRepos(ensureBoardState()).find((item) => (item.full_name || `${item.owner?.login || item.boardOwner}/${item.name}`) === card.dataset.boardOpenRepo); openBoardRepo(repo); };
