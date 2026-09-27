@@ -741,7 +741,7 @@ function boardLibraryPage() {
     const activeFilterCount = Object.values(boardFilters).filter((value) => value && value !== 'all').length;
     page = `${page.slice(0, toolbarStart)}<details class="board-filters"><summary><span>Filters</span><span>${activeFilterCount ? `${activeFilterCount} active` : 'Refine results'} <b>＋</b></span></summary>${toolbar}</details>${page.slice(resultsStart)}`;
   }
-  return page.replace('<main class="board-main">', `<main class="board-main"><div class="board-view-switch"><span>Projects</span><span><button type="button" class="text-button" data-board-mode="feed">Feed</button><button type="button" class="text-button" data-board-mode="ideas">Idea Lab</button></span></div>${boardRepoViewerPanel()}`);
+  return page.replace('<main class="board-main">', `<main class="board-main"><div class="board-view-switch"><span>Board workspace</span><span><button type="button" class="text-button" data-board-mode="feed">Feed</button><button type="button" class="text-button" data-board-mode="ideas">Ideas</button><button type="button" class="text-button is-active" data-board-mode="library">Projects</button></span></div>${boardRepoViewerPanel()}`);
 }
 
 function boardGroupVisibilityLabel(group) {
