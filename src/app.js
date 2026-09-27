@@ -1144,6 +1144,25 @@ function bindBoardRepoFileEvents() {
 
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
+    document.querySelector('.editorial-nav')?.addEventListener('click', (event) => {
+      const target = event.target.closest('button');
+      if (!target) return;
+      let nextView = '';
+      let nextPage = 'profile';
+      if (target.hasAttribute('data-minimal-home')) {
+        event.preventDefault(); event.stopPropagation();
+        if (root.dataset.minimalView === 'board' && target.classList.contains('editorial-brand')) { boardNavExpanded = !boardNavExpanded; root.dataset.boardNavExpanded = String(boardNavExpanded); target.setAttribute('aria-expanded', String(boardNavExpanded)); target.setAttribute('aria-label', boardNavExpanded ? 'Collapse Board navigation' : 'Expand Board navigation'); return; }
+        nextView = 'landing';
+      } else if (target.hasAttribute('data-minimal-portfolio')) nextView = 'portfolio';
+      else if (target.hasAttribute('data-minimal-about')) nextView = 'about';
+      else if (target.hasAttribute('data-minimal-board')) nextView = 'board';
+      else if (target.hasAttribute('data-minimal-requests')) nextView = 'requests';
+      else if (target.hasAttribute('data-minimal-signal')) nextView = 'signal';
+      else if (target.hasAttribute('data-minimal-account')) nextView = 'account';
+      else if (target.hasAttribute('data-minimal-account-page')) { nextView = 'account'; nextPage = target.dataset.minimalAccountPage; }
+      if (!nextView) return;
+      event.preventDefault(); event.stopPropagation(); renderMinimal(nextView, '', nextPage);
+    }, true);
     document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
     document.querySelectorAll('[data-minimal-account]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', 'profile')));
     document.querySelectorAll('[data-minimal-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.minimalAccountPage)));
