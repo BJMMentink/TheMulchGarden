@@ -9,3 +9,9 @@ Keep changes small and testable.
 - Run `node --test` before handing off a milestone.
 - Prefer browser-native APIs and no dependency when they meet the need.
 
+# Before you begin
+
+Read [AI-HANDOFF.md](./AI-HANDOFF.md) before making changes. It records hosting, deployment, MCP, and project-context discoveries that future agents must not infer incorrectly.
+
+When you discover something new about the project, record it in the `docs` folder before finishing your task.
+

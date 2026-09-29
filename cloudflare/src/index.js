@@ -3,10 +3,37 @@ const DEFAULT_SESSION_DAYS = 14;
 // Keep comfortably below Cloudflare Workers' 100,000-iteration PBKDF2 cap.
 const PASSWORD_ITERATIONS = 50000;
 const PASSWORD_KEY_BITS = 256;
+const MIN_PASSWORD_LENGTH = 12;
 const MAX_BODY_BYTES = 100000;
 const MAX_ACCOUNTS = 2;
 const CHAT_MAX_MESSAGE_LENGTH = 280;
 const CHAT_MAX_MESSAGES = 100;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 10;
+const MCP_PROTOCOL_VERSION = '2025-03-26';
+const MCP_ADMIN_PAGES = Object.freeze([
+  { id: 'landing', label: 'Home', description: 'The garden landing page.' },
+  { id: 'portfolio', label: 'Portfolio', description: 'Projects and working rhythm.' },
+  { id: 'board', label: 'Board', description: 'Projects, groups, ideas, and files.' },
+  { id: 'requests', label: 'Requests', description: 'Feature requests and bug reports.' },
+  { id: 'about', label: 'About', description: 'Builder profile and context.' },
+  { id: 'account', label: 'Account', description: 'Profile, security, and account settings.' },
+  { id: 'mcp', label: 'MCP', description: 'Connected assistant tools and server status.' },
+]);
+const MCP_TOOLS = Object.freeze([
+  { name: 'get_project_context', description: 'Return a concise, read-only overview of the Mulch Garden project and its available workspaces.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } },
+  { name: 'list_board_projects', description: 'List the projects currently visible on the authenticated user\'s Mulch Garden board.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } },
+  { name: 'list_admin_pages', description: 'List the quick-cycle pages available in the Mulch Garden administrator view.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } },
+]);
+
+const SECURITY_HEADERS = Object.freeze({
+  'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+});
 
 const SEEDED_INTERESTS = [
   { id: 'creator-nuxinor', name: 'Nuxinor', category: 'creator', rating: 5, source: 'seed' },
@@ -47,11 +74,12 @@ function corsHeaders(request, env) {
   const configured = String(env.FRONTEND_ORIGIN || '').trim();
   const origin = request.headers.get('Origin');
   const allowed = configured && origin === configured ? origin : '';
-  return allowed ? { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS', Vary: 'Origin' } : {};
+  return allowed ? { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, Mcp-Protocol-Version', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS', Vary: 'Origin' } : {};
 }
 
 function withCors(response, request, env) {
   const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) headers.set(key, value);
   for (const [key, value] of Object.entries(corsHeaders(request, env))) headers.set(key, value);
   return new Response(response.body, { status: response.status, headers });
 }
@@ -66,12 +94,25 @@ function b64(bytes) { return btoa(String.fromCharCode(...new Uint8Array(bytes)))
 function fromB64(value) { const normalized = value.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - value.length % 4) % 4); return Uint8Array.from(atob(normalized), (char) => char.charCodeAt(0)); }
 function randomToken() { const bytes = crypto.getRandomValues(new Uint8Array(32)); return b64(bytes); }
 async function digest(value) { return b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))); }
+async function timingSafeSecretEquals(provided, expected) {
+  const encoder = new TextEncoder();
+  const [providedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(String(provided || ''))),
+    crypto.subtle.digest('SHA-256', encoder.encode(String(expected || ''))),
+  ]);
+  if (typeof crypto.subtle.timingSafeEqual === 'function') return crypto.subtle.timingSafeEqual(providedHash, expectedHash);
+  const left = new Uint8Array(providedHash);
+  const right = new Uint8Array(expectedHash);
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) mismatch |= left[index] ^ right[index];
+  return mismatch === 0;
+}
 async function derive(password, salt, iterations = PASSWORD_ITERATIONS) {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, PASSWORD_KEY_BITS));
 }
 async function createPasswordHash(password, enforcePolicy = true) {
-  if (typeof password !== 'string' || password.length > 200 || (enforcePolicy && password.length < 4)) throw new Error('Password must be 4–200 characters.');
+  if (typeof password !== 'string' || password.length > 200 || (enforcePolicy && password.length < MIN_PASSWORD_LENGTH)) throw new Error(`Password must be ${MIN_PASSWORD_LENGTH}–200 characters.`);
   const salt = crypto.getRandomValues(new Uint8Array(16));
   return `pbkdf2-sha256:${PASSWORD_ITERATIONS}:${b64(salt)}:${b64(await derive(password, salt))}`;
 }
@@ -90,9 +131,9 @@ async function verifyPassword(password, encoded) {
   } catch { return false; }
 }
 
-function publicUser(user, token) { return { id: user.id, username: user.username, role: user.role || 'user', ...(token ? { token } : {}) }; }
-function cookie(token, maxAge) { return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`; }
-function expiredCookie() { return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`; }
+function publicUser(user) { return { id: user.id, username: user.username, role: user.role || 'user' }; }
+function cookie(token, maxAge) { return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`; }
+function expiredCookie() { return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`; }
 function userId() { return crypto.randomUUID(); }
 
 async function ensureBootstrap(env) {
@@ -117,19 +158,95 @@ async function currentUser(request, env) {
 }
 
 async function readJson(request) {
+  const declaredLength = Number(request.headers.get('Content-Length') || 0);
+  if (declaredLength > MAX_BODY_BYTES) throw Object.assign(new Error('Request body too large.'), { status: 413 });
   const text = await request.text();
   if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) throw Object.assign(new Error('Request body too large.'), { status: 413 });
   return text ? JSON.parse(text) : {};
 }
 
+function safeHttpUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeStateUrls(state, rejectInvalid = false) {
+  const board = state?.board;
+  if (!board || typeof board !== 'object') return state;
+  const checkItems = (items, field = 'repoUrl') => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || !item[field]) continue;
+      const normalized = safeHttpUrl(item[field]);
+      if (!normalized && rejectInvalid) throw new Error('Only http:// and https:// links are allowed.');
+      item[field] = normalized;
+    }
+  };
+  checkItems(board.githubProfiles, 'url');
+  checkItems(board.githubProfiles, 'profileUrl');
+  checkItems(board.projects);
+  checkItems(board.posts);
+  checkItems(board.replies);
+  checkItems(board.ideas);
+  if (state.profile?.avatarDataUrl && !/^data:image\/(?:png|jpeg|webp);base64,/.test(String(state.profile.avatarDataUrl))) {
+    if (rejectInvalid) throw new Error('Profile images must be PNG, JPEG, or WebP data.');
+    state.profile.avatarDataUrl = '';
+  }
+  return state;
+}
+
+async function loginRateKey(request, username) {
+  const address = request.headers.get('CF-Connecting-IP') || 'unknown';
+  return digest(`login:${address}:${String(username || '').trim().toLowerCase()}`);
+}
+
+async function assertLoginAllowed(request, env, username) {
+  const key = await loginRateKey(request, username);
+  const row = await env.DB.prepare('SELECT window_started, attempts FROM login_attempts WHERE key_digest = ?').bind(key).first();
+  const now = Date.now();
+  if (row && now - Number(row.window_started) < LOGIN_WINDOW_MS && Number(row.attempts) >= LOGIN_MAX_FAILURES) {
+    const retryAfter = Math.max(1, Math.ceil((Number(row.window_started) + LOGIN_WINDOW_MS - now) / 1000));
+    throw Object.assign(new Error('Too many login attempts. Please wait before trying again.'), { status: 429, retryAfter });
+  }
+}
+
+async function recordLoginFailure(request, env, username) {
+  const key = await loginRateKey(request, username);
+  const now = Date.now();
+  await env.DB.prepare(`
+    INSERT INTO login_attempts (key_digest, window_started, attempts)
+    VALUES (?, ?, 1)
+    ON CONFLICT(key_digest) DO UPDATE SET
+      attempts = CASE WHEN login_attempts.window_started < ? THEN 1 ELSE login_attempts.attempts + 1 END,
+      window_started = CASE WHEN login_attempts.window_started < ? THEN excluded.window_started ELSE login_attempts.window_started END
+  `).bind(key, now, now - LOGIN_WINDOW_MS, now - LOGIN_WINDOW_MS).run();
+}
+
+async function clearLoginFailures(request, env, username) {
+  const key = await loginRateKey(request, username);
+  await env.DB.prepare('DELETE FROM login_attempts WHERE key_digest = ?').bind(key).run();
+}
+
 async function login(request, env) {
   const body = await readJson(request);
-  const user = await env.DB.prepare('SELECT id, username, password_hash, role FROM users WHERE username = ? COLLATE NOCASE').bind(String(body.username || '').trim()).first();
-  if (!user || !(await verifyPassword(body.password, user.password_hash))) throw new Error('Username or password is incorrect.');
+  const username = String(body.username || '').trim();
+  await assertLoginAllowed(request, env, username);
+  const user = await env.DB.prepare('SELECT id, username, password_hash, role FROM users WHERE username = ? COLLATE NOCASE').bind(username).first();
+  if (!user || !(await verifyPassword(body.password, user.password_hash))) {
+    await recordLoginFailure(request, env, username);
+    throw new Error('Username or password is incorrect.');
+  }
+  await clearLoginFailures(request, env, username);
   const token = randomToken();
   const days = Number(env.SESSION_DAYS || DEFAULT_SESSION_DAYS);
   await env.DB.prepare('INSERT INTO sessions (digest, user_id, expires_at) VALUES (?, ?, ?)').bind(await digest(token), user.id, Date.now() + days * 86400000).run();
-  return json({ user: publicUser(user, token) }, 200, { 'Set-Cookie': cookie(token, days * 86400) });
+  return json({ user: publicUser(user) }, 200, { 'Set-Cookie': cookie(token, days * 86400) });
 }
 
 async function updateAccount(request, env, user) {
@@ -148,11 +265,12 @@ async function updateAccount(request, env, user) {
 async function appState(request, env, user) {
   if (request.method === 'GET') {
     const row = await env.DB.prepare('SELECT state_json FROM user_state WHERE user_id = ?').bind(user.id).first();
-    const stored = row ? JSON.parse(row.state_json) : initialState();
+    const stored = normalizeStateUrls(row ? JSON.parse(row.state_json) : initialState());
     return json({ ...initialState(), ...stored, memories: Array.isArray(stored.memories) ? stored.memories : [] });
   }
   const body = await readJson(request);
   if (body.version !== 1 || !Array.isArray(body.interests) || !Array.isArray(body.projects)) throw new Error('Invalid application state.');
+  normalizeStateUrls(body, true);
   await env.DB.prepare('INSERT INTO user_state (user_id, state_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at').bind(user.id, JSON.stringify(body), new Date().toISOString()).run();
   return json(body);
 }
@@ -167,6 +285,10 @@ function normalizeSocialBoard(stored) {
 }
 
 async function boardProjects(env, user) {
+  return json({ projects: await boardProjectsData(env, user) });
+}
+
+async function boardProjectsData(env, user) {
   const result = await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all();
   const projects = [];
   for (const row of result.results || []) {
@@ -178,7 +300,7 @@ async function boardProjects(env, user) {
     }
   }
   projects.sort((left, right) => String(right.updatedAt || right.createdAt || '').localeCompare(String(left.updatedAt || left.createdAt || '')));
-  return json({ projects });
+  return projects;
 }
 
 async function boardSocial(env, user) {
@@ -313,6 +435,91 @@ async function adminUsers(request, env, user) {
   return json({ user: publicUser({ id, username, role }) }, 201);
 }
 
+function mcpRpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
+function mcpRpcError(id, code, message) { return { jsonrpc: '2.0', id, error: { code, message } }; }
+function mcpTextResult(payload) { return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: payload }; }
+
+function mcpOriginAllowed(request, env) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return true;
+  if (origin === 'null') return false;
+  try {
+    const parsed = new URL(origin);
+    return parsed.origin === origin && parsed.origin === String(env.FRONTEND_ORIGIN || '').trim();
+  } catch { return false; }
+}
+
+function mcpHasId(message) { return Object.prototype.hasOwnProperty.call(message, 'id'); }
+function mcpIsResponse(message) {
+  return message && message.jsonrpc === '2.0' && mcpHasId(message)
+    && (Object.prototype.hasOwnProperty.call(message, 'result') || Object.prototype.hasOwnProperty.call(message, 'error'));
+}
+
+async function mcpUser(request, env) {
+  const bearer = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || '';
+  const configuredUsername = String(env.MCP_USERNAME || '').trim();
+  if (env.MCP_TOKEN && bearer && await timingSafeSecretEquals(bearer, env.MCP_TOKEN)) {
+    if (!configuredUsername) return null;
+    return env.DB.prepare('SELECT id, username, role FROM users WHERE username = ? COLLATE NOCASE LIMIT 1').bind(configuredUsername).first();
+  }
+  const user = await currentUser(request, env);
+  if (configuredUsername && user?.username?.toLowerCase() !== configuredUsername.toLowerCase()) return null;
+  return user;
+}
+
+async function mcpRoute(request, env) {
+  if (!mcpOriginAllowed(request, env)) return json({ error: 'Origin is not allowed.' }, 403);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { Allow: 'POST, OPTIONS' } });
+  if (request.method === 'GET') return json({ error: 'MCP uses POST for JSON-RPC messages.' }, 405, { Allow: 'POST' });
+  if (request.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405, { Allow: 'POST' });
+  let payload;
+  try {
+    payload = await readJson(request);
+    await ensureBootstrap(env);
+    const user = await mcpUser(request, env);
+    if (!user) throw Object.assign(new Error('MCP authentication required.'), { status: 401 });
+    if (Array.isArray(payload) && payload.length === 0) return json(mcpRpcError(null, -32600, 'An empty JSON-RPC batch is invalid.'));
+
+    const processMessage = async (message) => {
+      if (!message || typeof message !== 'object' || Array.isArray(message) || message.jsonrpc !== '2.0') {
+        return mcpRpcError(null, -32600, 'Invalid JSON-RPC request.');
+      }
+      if (mcpIsResponse(message)) return null;
+      if (typeof message.method !== 'string') return mcpRpcError(mcpHasId(message) ? message.id : null, -32600, 'Invalid JSON-RPC request.');
+      if (!mcpHasId(message)) return null;
+      if (message.method === 'initialize') return mcpRpcResult(message.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: { name: 'mulch-garden', version: '0.1.0' }, instructions: 'Use this server for read-only Mulch Garden context. Every tool call is scoped to the authenticated user and should be explained to the user when it is part of a larger workflow.' });
+      if (message.method === 'ping') return mcpRpcResult(message.id, {});
+      if (message.method === 'tools/list') return mcpRpcResult(message.id, { tools: MCP_TOOLS });
+      if (message.method === 'tools/call') {
+        const name = message.params?.name;
+        try {
+          if (name === 'get_project_context') return mcpRpcResult(message.id, mcpTextResult({ name: 'The Mulch Garden', purpose: 'A private productivity and information hub for projects, interests, todos, games, and integrations.', authenticatedAs: user.username, availablePages: MCP_ADMIN_PAGES, mcpEndpoint: '/mcp' }));
+          if (name === 'list_board_projects') return mcpRpcResult(message.id, mcpTextResult({ projects: await boardProjectsData(env, user) }));
+          if (name === 'list_admin_pages') return mcpRpcResult(message.id, mcpTextResult({ pages: MCP_ADMIN_PAGES }));
+          return mcpRpcError(message.id, -32602, `Unknown MCP tool: ${name}`);
+        } catch (error) {
+          return mcpRpcError(message.id, -32603, error.message || 'Tool call failed.');
+        }
+      }
+      return mcpRpcError(message.id, -32601, `Method not found: ${message.method}`);
+    };
+
+    const batch = Array.isArray(payload);
+    const messages = batch ? payload : [payload];
+    const replies = [];
+    for (const message of messages) {
+      const reply = await processMessage(message);
+      if (reply) replies.push(reply);
+    }
+    if (replies.length === 0) return new Response(null, { status: 202 });
+    return json(batch ? replies : replies[0]);
+  } catch (error) {
+    const status = error.status || (error.message?.includes('required') ? 401 : 400);
+    const message = Array.isArray(payload) ? null : payload;
+    return json(message && mcpHasId(message) ? mcpRpcError(message.id, -32000, error.message || 'MCP request failed.') : { error: error.message || 'MCP request failed.' }, status);
+  }
+}
+
 async function supportRequests(request, env, user, requestId = '') {
   const rows = (await env.DB.prepare('SELECT users.id AS ownerId, users.username, user_state.state_json FROM user_state JOIN users ON users.id = user_state.user_id').all()).results || [];
   const parsed = rows.map((row) => { let stored; try { stored = JSON.parse(row.state_json); } catch { stored = initialState(); } stored.feedback = Array.isArray(stored.feedback) ? stored.feedback : []; return { row, stored }; });
@@ -335,6 +542,7 @@ async function supportRequests(request, env, user, requestId = '') {
 
 async function route(request, env) {
   const url = new URL(request.url);
+  if (url.pathname === '/mcp') return mcpRoute(request, env);
   if (!url.pathname.startsWith('/api/')) return new Response('The Mulch Garden API', { status: 200 });
   if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
   await ensureBootstrap(env);

@@ -1,6 +1,6 @@
 name = "the-mulch-garden-api"
 main = "cloudflare/src/index.js"
-compatibility_date = "2026-09-13"
+compatibility_date = "2026-09-27"
 
 [[d1_databases]]
 binding = "DB"

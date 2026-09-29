@@ -10,6 +10,8 @@ export const SERVER_CONFIG = Object.freeze({
   sessionDays: 14,
   bodyLimitBytes: 100_000,
   secureCookies: process.env.NODE_ENV === 'production',
+  mcpToken: process.env.MCP_TOKEN || '',
+  mcpUsername: process.env.MCP_USERNAME || '',
   maxAccounts: 2,
   chatMaxMessageLength: 280,
   chatMaxMessages: 100,

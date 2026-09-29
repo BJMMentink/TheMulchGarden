@@ -3,3 +3,4 @@
 // be pointed at the Worker directly when needed.
 // Keep this file dependency-free so the Pages build can copy it unchanged.
 globalThis.MULCH_API_BASE = '';
+globalThis.MULCH_MCP_ENDPOINT = 'https://the-mulch-garden-api.bjmmentink.workers.dev/mcp';

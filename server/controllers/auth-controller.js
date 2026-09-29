@@ -16,6 +16,18 @@ export function createAuthController(repository, config) {
       const user = (await repository.users.read('users', [])).find((item) => item.id === session.userId && item.username);
       return user ? publicUser(user) : null;
     },
+    async mcpUser(request) {
+      const authorization = String(request.headers.authorization || '');
+      const configuredToken = String(config.mcpToken || '');
+      if (configuredToken && authorization === `Bearer ${configuredToken}`) {
+        if (!config.mcpUsername) return null;
+        const configuredUser = await repository.findUserByUsername(config.mcpUsername);
+        return configuredUser ? publicUser(configuredUser) : null;
+      }
+      const sessionUser = await this.current(request);
+      if (config.mcpUsername && sessionUser?.username?.toLowerCase() !== config.mcpUsername.toLowerCase()) return null;
+      return sessionUser;
+    },
     async register() { throw Object.assign(new Error('Account creation is disabled.'), { status: 403 }); },
     async login(body, request, response) {
       const user = await repository.findUserByUsername(String(body.username || '').trim());

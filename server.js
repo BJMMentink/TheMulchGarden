@@ -6,6 +6,7 @@ import { SERVER_CONFIG } from './server/config.js';
 import { createAuthController } from './server/controllers/auth-controller.js';
 import { createAppController } from './server/controllers/app-controller.js';
 import { createRouter } from './server/router.js';
+import { createMcpHandler } from './server/mcp.js';
 import { Repository } from './server/models/repository.js';
 
 const PROJECT_ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -16,6 +17,12 @@ const repository = new Repository(SERVER_CONFIG.dataDirectory);
 const auth = createAuthController(repository, SERVER_CONFIG);
 const app = createAppController(repository, auth, SERVER_CONFIG);
 const routeApi = createRouter({ auth, app, bodyLimit: SERVER_CONFIG.bodyLimitBytes });
+const handleMcp = createMcpHandler({
+  auth,
+  app,
+  bodyLimit: SERVER_CONFIG.bodyLimitBytes,
+  allowedOrigins: [`http://127.0.0.1:${SERVER_CONFIG.port}`, `http://localhost:${SERVER_CONFIG.port}`],
+});
 
 function staticPath(requestUrl) {
   const requestedPath = decodeURIComponent(new URL(requestUrl, 'http://localhost').pathname);
@@ -26,6 +33,7 @@ function staticPath(requestUrl) {
 }
 
 const server = createServer(async (request, response) => {
+  if (request.url?.startsWith('/mcp')) { await handleMcp(request, response); return; }
   if (request.url?.startsWith('/api/')) { await routeApi(request, response); return; }
   if (request.method !== 'GET') { response.writeHead(405); response.end('Method Not Allowed'); return; }
   try {

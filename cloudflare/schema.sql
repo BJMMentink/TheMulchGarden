@@ -12,6 +12,14 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS login_attempts (
+  key_digest TEXT PRIMARY KEY,
+  window_started INTEGER NOT NULL,
+  attempts INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS login_attempts_window_idx ON login_attempts(window_started);
+
 CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
 
 CREATE TABLE IF NOT EXISTS user_state (

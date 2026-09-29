@@ -55,6 +55,11 @@ let supportFeatureScope = 'new';
 let supportRequestMessage = '';
 let adminSessionUser = null;
 let adminPreviewMode = 'admin';
+let adminNavGroupIndex = 0;
+let adminNavGroupInitialized = false;
+let adminNavCycleDirection = 0;
+let brandExpanded = false;
+let brandAnimationTimer;
 const root = document.querySelector('#app');
 
 function adminPreviewControl() {
@@ -69,12 +74,30 @@ function switchAdminPreview(mode) {
   const blockedForGuest = !['landing', 'portfolio', 'about'].includes(currentView);
   const blockedForMember = !['landing', 'portfolio', 'about', 'requests'].includes(currentView);
   adminPreviewMode = mode;
+  adminNavGroupInitialized = false;
+  adminNavCycleDirection = 0;
   guestMode = mode === 'guest';
   currentUser = { ...adminSessionUser, role: mode === 'admin' ? 'admin' : 'user' };
   if (mode !== 'admin' && boardMode === 'requests') boardMode = 'feed';
   minimalGlobalEventsBound = false;
   root.innerHTML = '';
   renderMinimal((mode === 'guest' && blockedForGuest) || (mode === 'member' && blockedForMember) ? 'landing' : currentView);
+}
+
+function toggleBrandLayout() {
+  brandExpanded = !brandExpanded;
+  if (root.dataset.minimalView === 'board') boardNavExpanded = brandExpanded;
+  root.dataset.brandExpanded = String(brandExpanded);
+  root.dataset.boardNavExpanded = root.dataset.minimalView === 'board' ? String(boardNavExpanded) : 'false';
+  const row = root.querySelector('.editorial-nav-row');
+  const brand = root.querySelector('[data-brand-toggle]');
+  brand?.setAttribute('aria-expanded', String(brandExpanded));
+  row?.classList.remove('brand-layout-animating');
+  window.clearTimeout(brandAnimationTimer);
+  window.requestAnimationFrame(() => {
+    row?.classList.add('brand-layout-animating');
+    brandAnimationTimer = window.setTimeout(() => row?.classList.remove('brand-layout-animating'), 720);
+  });
 }
 
 function applyPerformanceProfile() {
@@ -240,6 +263,20 @@ function bindHeroIntroGesture() {
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' })[character]);
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function safeImageDataUrl(value) {
+  const raw = String(value || '');
+  return /^data:image\/(?:png|jpeg|webp);base64,/.test(raw) ? raw : '';
 }
 
 function stars(rating) {
@@ -444,8 +481,80 @@ function minimalLanding() {
   return `<div class="editorial-landing"><section class="editorial-hero" data-reveal><div class="editorial-hero-copy"><span class="editorial-kicker">Personal signal / 001</span><h1>Make room for <span class="editorial-word" data-reveal-word>what matters.</span></h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. A small, private place for attention, ideas, and the next useful thing.</p><button class="editorial-link" data-scroll-target="editorial-field">Enter the garden <span class="editorial-arrow">↗</span></button></div><div class="editorial-loop" data-hover-visual role="img" aria-label="Animated maroon and black garden loop"><div class="loop-orbit loop-orbit-one"></div><div class="loop-orbit loop-orbit-two"></div><div class="loop-core">MG</div><span class="loop-caption">loop / 001</span></div></section><section class="editorial-field" id="editorial-field"><div class="editorial-field-intro" data-reveal><span class="editorial-kicker">A little context</span><h2>There is more than one way to begin.</h2></div><div class="editorial-card-grid"><article class="editorial-card" data-reveal><span class="editorial-index">01</span><h3>Small signals</h3><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec vitae sapien at orci pretium.</p><button class="editorial-card-link">Open the quiet <span class="editorial-arrow">↗</span></button></article>${featuredCard}<article class="editorial-card" data-reveal><span class="editorial-index">03</span><h3>Keep looking</h3><p>Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Follow the thread.</p><button class="editorial-card-link">Read the signal <span class="editorial-arrow">↗</span></button></article></div></section><section class="editorial-statement" data-reveal><p>“Lorem ipsum dolor sit amet, consectetur adipiscing elit. The garden is still becoming.”</p><span class="editorial-kicker">The Mulch Garden / 2026</span></section></div>`;
 }
 
-function signalPage() {
-  return `<section class="signal-page"><div class="settings-heading"><span class="editorial-kicker">Signal / 003</span><h2>A quiet place for the next thing.</h2><p>This preloaded placeholder shows how another section can join the garden without a page reload.</p></div><div class="signal-grid"><article class="signal-card"><span class="editorial-index">01</span><h3>Already here</h3><p>The shell, navigation, and page surfaces stay mounted while the view slides.</p></article><article class="signal-card"><span class="editorial-index">02</span><h3>Ready when needed</h3><p>Future data-heavy sections can fetch their content after the transition begins.</p></article></div></section>`;
+const MCP_TOOL_CATALOG = Object.freeze([
+  { name: 'get_project_context', group: 'Foundation', access: 'Read', tags: ['read-only', 'user-scoped', 'context'], input: 'No arguments', output: 'Garden identity, authenticated user, available pages, and endpoint.', usage: 'Use first when an assistant needs to understand what this garden is and what it can reach.' },
+  { name: 'list_board_projects', group: 'Board', access: 'Read', tags: ['read-only', 'user-scoped', 'projects'], input: 'No arguments', output: 'Projects visible to the authenticated user on the board.', usage: 'Use when an assistant needs project context before summarizing or planning work.' },
+  { name: 'list_admin_pages', group: 'Navigation', access: 'Read', tags: ['read-only', 'admin', 'navigation'], input: 'No arguments', output: 'The persistent quick-cycle page order used by the admin navigation.', usage: 'Use when an assistant needs to understand the available garden surfaces or navigation order.' },
+]);
+
+const MCP_GROUPS = Object.freeze([
+  { name: 'Foundation', description: 'Identity, server purpose, authentication context, and shared capabilities.', toolCount: 1, tags: ['context', 'user-scoped'] },
+  { name: 'Board', description: 'Project and workspace information that can be read without changing the board.', toolCount: 1, tags: ['projects', 'read-only'] },
+  { name: 'Navigation', description: 'The admin pages and stable page order used by the garden interface.', toolCount: 1, tags: ['navigation', 'admin'] },
+]);
+
+let mcpSection = 'overview';
+let mcpToolQuery = '';
+let mcpToolGroup = 'all';
+let mcpToolTag = 'all';
+let mcpBlueprint = null;
+
+function mcpFilteredTools() {
+  const query = mcpToolQuery.trim().toLocaleLowerCase();
+  return MCP_TOOL_CATALOG.filter((tool) => {
+    const matchesQuery = !query || [tool.name, tool.group, tool.description, tool.usage, ...tool.tags].join(' ').toLocaleLowerCase().includes(query);
+    const matchesGroup = mcpToolGroup === 'all' || tool.group === mcpToolGroup;
+    const matchesTag = mcpToolTag === 'all' || tool.tags.includes(mcpToolTag);
+    return matchesQuery && matchesGroup && matchesTag;
+  });
+}
+
+function mcpToolCard(tool, index) {
+  return `<article class="mcp-tool-card mcp-catalog-card"><div class="mcp-card-topline"><span class="editorial-index">${String(index + 1).padStart(2, '0')}</span><span class="mcp-tool-access">${escapeHtml(tool.access)}</span></div><h3>${escapeHtml(tool.name)}</h3><p class="mcp-tool-purpose">${escapeHtml(tool.usage)}</p><div class="mcp-tag-list">${tool.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}</div><dl class="mcp-tool-details"><div><dt>Group</dt><dd>${escapeHtml(tool.group)}</dd></div><div><dt>Input</dt><dd>${escapeHtml(tool.input)}</dd></div><div><dt>Returns</dt><dd>${escapeHtml(tool.output)}</dd></div></dl></article>`;
+}
+
+function mcpBlueprintMarkup() {
+  if (!mcpBlueprint) return '';
+  return `<div class="mcp-blueprint-result"><div class="mcp-card-topline"><span class="editorial-kicker">Generated definition</span><button type="button" class="mcp-copy-button" data-mcp-copy>Copy JSON</button></div><pre><code>${escapeHtml(JSON.stringify(mcpBlueprint, null, 2))}</code></pre></div>`;
+}
+
+function renderMcpToolCatalog() {
+  const tools = mcpFilteredTools();
+  const count = document.querySelector('[data-mcp-result-count]');
+  const grid = document.querySelector('[data-mcp-tool-grid]');
+  if (count) count.textContent = `${tools.length} of ${MCP_TOOL_CATALOG.length} shown`;
+  if (grid) grid.innerHTML = tools.length ? tools.map(mcpToolCard).join('') : '<div class="mcp-empty-state"><strong>No tools match that filter.</strong><span>Try another section, tag, or search phrase.</span></div>';
+}
+
+function setMcpSection(section) {
+  if (!['overview', 'tools', 'usage', 'organization'].includes(section)) return;
+  mcpSection = section;
+  document.querySelectorAll('[data-mcp-section]').forEach((tab) => {
+    const active = tab.dataset.mcpSection === section;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  document.querySelectorAll('[data-mcp-panel]').forEach((panel) => {
+    panel.hidden = panel.dataset.mcpPanel !== section;
+  });
+}
+
+function mcpPage() {
+  const filteredTools = mcpFilteredTools();
+  const allTags = [...new Set(MCP_TOOL_CATALOG.flatMap((tool) => tool.tags))].sort();
+  const endpoint = String(globalThis.MULCH_MCP_ENDPOINT || `${window.location.origin}/mcp`).replace(/\/$/, '');
+  const tabs = [['overview', 'Overview'], ['tools', 'Tools'], ['usage', 'Usage'], ['organization', 'Organization']];
+  const panels = Object.fromEntries(tabs.map(([id]) => [id, mcpSection === id ? '' : 'hidden']));
+  const toolCards = filteredTools.length ? filteredTools.map(mcpToolCard).join('') : '<div class="mcp-empty-state"><strong>No tools match that filter.</strong><span>Try another section, tag, or search phrase.</span></div>';
+  return `<section class="mcp-page" data-mcp-page>
+    <div class="mcp-hero"><div class="settings-heading"><span class="editorial-kicker">MCP / Control room</span><h2>Understand every connection.</h2><p>A private, read-only Model Context Protocol server with a catalog for its tools, clear permission boundaries, and a place to document how each capability is organized.</p></div><div class="mcp-live-badge"><span class="mcp-live-dot"></span><div><strong>Protected endpoint</strong><small>User-scoped access only</small></div></div></div>
+    <nav class="mcp-section-tabs" aria-label="MCP sections" role="tablist">${tabs.map(([id, label]) => `<button type="button" id="mcp-tab-${id}" role="tab" aria-controls="mcp-panel-${id}" aria-selected="${mcpSection === id}" tabindex="${mcpSection === id ? '0' : '-1'}" class="${mcpSection === id ? 'is-active' : ''}" data-mcp-section="${id}">${label}</button>`).join('')}</nav>
+    <div class="mcp-panel" id="mcp-panel-overview" role="tabpanel" aria-labelledby="mcp-tab-overview" data-mcp-panel="overview" ${panels.overview}><div class="mcp-stat-grid"><article class="mcp-stat-card"><span class="editorial-kicker">Configured tools</span><strong>${MCP_TOOL_CATALOG.length}</strong><span>Declared in the server tool catalog.</span></article><article class="mcp-stat-card"><span class="editorial-kicker">Read-only</span><strong>${MCP_TOOL_CATALOG.filter((tool) => tool.access === 'Read').length}</strong><span>No tool can change garden data.</span></article><article class="mcp-stat-card"><span class="editorial-kicker">Write actions</span><strong>0</strong><span>Intentional safety boundary.</span></article><article class="mcp-stat-card"><span class="editorial-kicker">Authentication</span><strong class="mcp-stat-word">User only</strong><span>Session or user-scoped bearer token.</span></article></div><div class="mcp-overview-grid"><article class="mcp-feature-card"><div class="mcp-card-topline"><span class="editorial-kicker">Connection</span><span class="mcp-status-pill">Available</span></div><h3>One guarded doorway</h3><p>The server lives at <code>/mcp</code> and speaks streamable JSON-RPC. Every request is authenticated before the server lists tools or handles a call.</p><div class="mcp-connection-line"><code>${escapeHtml(endpoint)}</code><button type="button" data-mcp-copy-endpoint>Copy endpoint</button></div></article><article class="mcp-feature-card mcp-feature-muted"><div class="mcp-card-topline"><span class="editorial-kicker">Telemetry</span><span class="mcp-status-pill mcp-status-pending">Not collected</span></div><h3>Honest numbers only</h3><p>The current server does not persist invocation history. This dashboard shows exact configured capabilities, while live request analytics remain a deliberate next step.</p><button type="button" class="mcp-inline-link" data-mcp-section-link="usage">See the usage plan <span>↗</span></button></article></div><section class="mcp-flow"><div><span class="editorial-kicker">How a call travels</span><h3>Four guarded steps.</h3></div><ol><li><span>01</span><strong>Connect</strong><p>Codex or another MCP client reaches the HTTPS endpoint.</p></li><li><span>02</span><strong>Authenticate</strong><p>The session or bearer token identifies the allowed user.</p></li><li><span>03</span><strong>Discover</strong><p>The client asks for the available tool definitions.</p></li><li><span>04</span><strong>Call</strong><p>The server runs one approved read-only operation and returns structured data.</p></li></ol></section></div>
+    <div class="mcp-panel" id="mcp-panel-tools" role="tabpanel" aria-labelledby="mcp-tab-tools" data-mcp-panel="tools" ${panels.tools}><div class="mcp-panel-heading"><div><span class="editorial-kicker">Tool catalog</span><h3>What the server can do.</h3><p>Each tool has a purpose, a group, a permission boundary, and a predictable result shape.</p></div><span class="mcp-result-count" data-mcp-result-count aria-live="polite">${filteredTools.length} of ${MCP_TOOL_CATALOG.length} shown</span></div><div class="mcp-filters"><label>Search tools<input type="search" data-mcp-tool-query value="${escapeHtml(mcpToolQuery)}" placeholder="Search by name, purpose, or tag"></label><label>Section<select data-mcp-tool-group><option value="all">All sections</option>${MCP_GROUPS.map((group) => `<option value="${escapeHtml(group.name)}" ${mcpToolGroup === group.name ? 'selected' : ''}>${escapeHtml(group.name)}</option>`).join('')}</select></label><label>Tag<select data-mcp-tool-tag><option value="all">All tags</option>${allTags.map((tag) => `<option value="${escapeHtml(tag)}" ${mcpToolTag === tag ? 'selected' : ''}>${escapeHtml(tag)}</option>`).join('')}</select></label></div><div class="mcp-tool-grid" data-mcp-tool-grid aria-live="polite">${toolCards}</div><div class="mcp-worksheet"><div><span class="editorial-kicker">Tool design worksheet</span><h3>Draft the shape before writing code.</h3><p>This creates a safe, reviewable definition preview. It does not publish a live server tool.</p></div><form id="mcp-blueprint-form"><label>Tool name<input name="name" required pattern="[a-z0-9_]{2,64}" title="Use 2–64 lowercase letters, numbers, or underscores." placeholder="get_project_context"></label><label>Purpose<textarea name="description" required maxlength="240" placeholder="What should the assistant use this for?"></textarea></label><div class="mcp-form-row"><label>Section<select name="group">${MCP_GROUPS.map((group) => `<option value="${escapeHtml(group.name)}">${escapeHtml(group.name)}</option>`).join('')}</select></label><label>Tags<input name="tags" maxlength="240" placeholder="read-only, user-scoped"></label></div><button class="portfolio-button" type="submit">Generate definition <span class="editorial-arrow">↗</span></button></form><div class="mcp-blueprint-output" data-mcp-blueprint-output>${mcpBlueprintMarkup()}</div></div></div>
+    <div class="mcp-panel" id="mcp-panel-usage" role="tabpanel" aria-labelledby="mcp-tab-usage" data-mcp-panel="usage" ${panels.usage}><div class="mcp-panel-heading"><div><span class="editorial-kicker">Usage &amp; observability</span><h3>Know what is actually happening.</h3><p>Production MCP consoles separate configured capability from measured activity. This page is ready for that distinction.</p></div></div><div class="mcp-usage-grid"><article class="mcp-usage-card"><span class="editorial-kicker">Current state</span><strong>Configuration measured</strong><p>Three tools are declared. All three are read-only and user-scoped.</p></article><article class="mcp-usage-card"><span class="editorial-kicker">Live calls</span><strong>Not tracked yet</strong><p>No request payloads, tokens, or billing details are stored by the current server.</p></article><article class="mcp-usage-card"><span class="editorial-kicker">Recommended next metric</span><strong>Daily tool count</strong><p>Record only user ID, tool name, result status, and timestamp—never secrets or request contents.</p></article></div><div class="mcp-audit-table"><div class="mcp-table-heading"><span>Metric</span><span>Meaning</span><span>Safe data boundary</span></div><div><strong>Calls by tool</strong><span>Which tools are actually being used?</span><span>Tool name + count</span></div><div><strong>Success rate</strong><span>Are calls returning useful results?</span><span>Status + timestamp</span></div><div><strong>Last used</strong><span>Is a tool still relevant?</span><span>Tool name + time</span></div></div></div>
+    <div class="mcp-panel" id="mcp-panel-organization" role="tabpanel" aria-labelledby="mcp-tab-organization" data-mcp-panel="organization" ${panels.organization}><div class="mcp-panel-heading"><div><span class="editorial-kicker">Organization model</span><h3>Groups first. Tags second.</h3><p>Sections describe ownership and purpose. Tags make the catalog searchable across sections.</p></div></div><div class="mcp-group-grid">${MCP_GROUPS.map((group, index) => `<article class="mcp-group-card"><span class="editorial-index">${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(group.name)}</h3><p>${escapeHtml(group.description)}</p><strong>${group.toolCount} tool</strong><div class="mcp-tag-list">${group.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}</div></article>`).join('')}</div><div class="mcp-organization-notes"><div><span class="editorial-kicker">Naming rule</span><strong>Use verbs for actions.</strong><p><code>list_board_projects</code> says what the tool does before anyone opens its description.</p></div><div><span class="editorial-kicker">Permission rule</span><strong>Separate reads from writes.</strong><p>Different risk levels should use different tools, confirmations, and review paths.</p></div><div><span class="editorial-kicker">Tag rule</span><strong>Tag the boundary.</strong><p>Use tags such as <code>read-only</code>, <code>user-scoped</code>, and <code>admin</code> to make safety visible.</p></div></div></div>
+  </section>`;
 }
 
 function portfolioPage() {
@@ -657,7 +766,8 @@ function boardRepoViewerPanel() {
 function boardProjectCard(project) {
   const folder = ensureBoardState().folders.find((item) => item.id === project.folderId);
   const canRemove = currentUser.role === 'admin' || project.ownerId === currentUser.id;
-  return `<article class="board-card board-project-card"><div class="board-card-topline"><span class="board-source-pill board-source-project">Board project</span><span class="board-card-owner">${escapeHtml(project.ownerUsername || currentUser.username)}</span></div><div class="board-card-copy"><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(project.note || project.description || 'A project idea waiting for its next useful step.')}</p></div><div class="board-card-meta"><span>${escapeHtml(project.language || 'Concept')}</span><span>${escapeHtml(boardVisibilityLabel(project))}</span><span>${escapeHtml(folder?.name || 'Inbox')}</span></div><div class="board-tag-row">${(project.topics || []).map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${project.repoUrl ? `<a class="text-button" href="${escapeHtml(project.repoUrl)}" target="_blank" rel="noreferrer">Open source ↗</a>` : '<span class="board-linked-state">Idea / concept</span>'}${canRemove ? `<button class="text-button danger" data-board-remove="${escapeHtml(project.id)}">Remove from board</button>` : ''}</div></article>`;
+  const repoUrl = safeHttpUrl(project.repoUrl);
+  return `<article class="board-card board-project-card"><div class="board-card-topline"><span class="board-source-pill board-source-project">Board project</span><span class="board-card-owner">${escapeHtml(project.ownerUsername || currentUser.username)}</span></div><div class="board-card-copy"><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(project.note || project.description || 'A project idea waiting for its next useful step.')}</p></div><div class="board-card-meta"><span>${escapeHtml(project.language || 'Concept')}</span><span>${escapeHtml(boardVisibilityLabel(project))}</span><span>${escapeHtml(folder?.name || 'Inbox')}</span></div><div class="board-tag-row">${(project.topics || []).map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div><div class="board-card-actions">${repoUrl ? `<a class="text-button" href="${escapeHtml(repoUrl)}" target="_blank" rel="noreferrer">Open source ↗</a>` : '<span class="board-linked-state">Idea / concept</span>'}${canRemove ? `<button class="text-button danger" data-board-remove="${escapeHtml(project.id)}">Remove from board</button>` : ''}</div></article>`;
 }
 
 function boardProjectsForUser(board) {
@@ -741,7 +851,13 @@ function boardLibraryPage() {
     const activeFilterCount = Object.values(boardFilters).filter((value) => value && value !== 'all').length;
     page = `${page.slice(0, toolbarStart)}<details class="board-filters"><summary><span>Filters</span><span>${activeFilterCount ? `${activeFilterCount} active` : 'Refine results'} <b>＋</b></span></summary>${toolbar}</details>${page.slice(resultsStart)}`;
   }
-  return page.replace('<main class="board-main">', `<main class="board-main"><div class="board-view-switch"><span>Board workspace</span><span><button type="button" class="text-button" data-board-mode="feed">Feed</button><button type="button" class="text-button" data-board-mode="ideas">Ideas</button><button type="button" class="text-button is-active" data-board-mode="library">Projects</button></span></div>${boardRepoViewerPanel()}`);
+  const mainStart = page.indexOf('<main class="board-main">');
+  const mainEnd = page.lastIndexOf('</main>');
+  const libraryMain = page.slice(mainStart + '<main class="board-main">'.length, mainEnd);
+  const memberGroups = Array.isArray(boardSocial.groups) ? boardSocial.groups.filter((group) => group.isMember) : [];
+  const sidebarState = boardFeedSidebarOpen ? '' : ' is-sidebar-collapsed';
+  const sidebarButtonLabel = boardFeedSidebarOpen ? 'Collapse Board sidebar' : 'Expand Board sidebar';
+  return `<section class="board-page board-social-page"><div class="board-social-layout${sidebarState}"><aside class="board-social-sidebar${boardFeedSidebarOpen ? '' : ' is-collapsed'}"><button type="button" class="board-sidebar-toggle" data-board-toggle-sidebar aria-expanded="${boardFeedSidebarOpen}" aria-controls="board-projects-sidebar-content" aria-label="${sidebarButtonLabel}"><span class="board-sidebar-toggle-mark" aria-hidden="true">${boardFeedSidebarOpen ? '‹' : '›'}</span><span class="board-sidebar-toggle-label">${boardFeedSidebarOpen ? 'Hide' : 'Show'} board</span></button><div class="board-social-sidebar-content" id="board-projects-sidebar-content"><div class="board-social-sidebar-top"><span class="editorial-kicker">Board workspace</span><h2>Three places. One flow.</h2><p>Talk, shape ideas, then organize the projects worth keeping.</p></div><div class="board-social-section board-workspace-links"><span class="board-social-label">Workspace</span><button type="button" class="board-workspace-link" data-board-mode="feed"><span>Feed</span><small>Updates and replies</small></button><button type="button" class="board-workspace-link" data-board-mode="ideas"><span>Idea Lab</span><small>Shape rough ideas</small></button><button type="button" class="board-workspace-link is-active" data-board-mode="library"><span>Projects</span><small>Repos and folders</small></button></div><div class="board-social-section"><span class="board-social-label">Your groups</span>${memberGroups.length ? memberGroups.map((group) => `<button type="button" class="board-workspace-link" data-board-project-group="${escapeHtml(group.id)}"><span>${escapeHtml(group.name)}</span><small>Open its feed</small></button>`).join('') : '<p class="board-sidebar-empty">Join a group to share project context with other people.</p>'}</div></div></aside><main class="board-feed-main board-projects-main"><div class="board-feed-heading"><div><span class="editorial-kicker">Project library</span><h2>Projects with somewhere to go.</h2><p>Browse repositories and collect the concepts worth sharing with the right people.</p></div><div class="board-feed-actions"><button type="button" class="board-view-tab" data-board-mode="feed">Feed</button><button type="button" class="board-view-tab" data-board-mode="ideas">Ideas</button><button type="button" class="board-view-tab is-active">Projects</button></div></div>${boardRepoViewerPanel()}${libraryMain}</main></div></section>`;
 }
 
 function boardGroupVisibilityLabel(group) {
@@ -753,7 +869,8 @@ function boardGroupVisibilityLabel(group) {
 function boardFeedPost(post, group, replies) {
   const postReplies = replies.filter((reply) => reply.postId === post.id);
   const contextLabel = post.repoPath ? `Code callout · ${post.repoPath}${post.repoLine ? `:${post.repoLine}` : ''}` : post.repoUrl ? 'Repository discussion' : '';
-  return `<article class="board-post"><div class="board-post-topline"><div><strong>${escapeHtml(post.ownerUsername || 'Member')}</strong><span>in ${escapeHtml(group?.name || 'Group')}</span></div><time>${escapeHtml(new Date(post.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</time></div><p class="board-post-body">${escapeHtml(post.body)}</p>${post.snippet ? `<pre class="board-post-snippet"><code>${escapeHtml(post.snippet)}</code></pre>` : ''}${post.repoUrl ? `<div class="board-post-context"><span>${escapeHtml(contextLabel)}</span><a class="board-post-link" data-board-post-repo="${escapeHtml(post.repoUrl)}" href="${escapeHtml(post.repoUrl)}" target="_blank" rel="noreferrer">${post.repoPath ? 'Open callout on GitHub ↗' : 'Open linked project ↗'}</a></div>` : ''}<div class="board-post-replies">${postReplies.map((reply) => `<div class="board-reply"><strong>${escapeHtml(reply.ownerUsername || 'Member')}</strong><p>${escapeHtml(reply.body)}</p></div>`).join('')}</div>${group?.isMember ? `<form class="board-reply-form" data-board-reply-form="${escapeHtml(post.id)}"><input name="body" required maxlength="1000" placeholder="Reply to this post…"><button class="text-button" type="submit">Reply</button></form>` : ''}</article>`;
+  const repoUrl = safeHttpUrl(post.repoUrl);
+  return `<article class="board-post"><div class="board-post-topline"><div><strong>${escapeHtml(post.ownerUsername || 'Member')}</strong><span>in ${escapeHtml(group?.name || 'Group')}</span></div><time>${escapeHtml(new Date(post.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))}</time></div><p class="board-post-body">${escapeHtml(post.body)}</p>${post.snippet ? `<pre class="board-post-snippet"><code>${escapeHtml(post.snippet)}</code></pre>` : ''}${repoUrl ? `<div class="board-post-context"><span>${escapeHtml(contextLabel)}</span><a class="board-post-link" data-board-post-repo="${escapeHtml(repoUrl)}" href="${escapeHtml(repoUrl)}" target="_blank" rel="noreferrer">${post.repoPath ? 'Open callout on GitHub ↗' : 'Open linked project ↗'}</a></div>` : ''}<div class="board-post-replies">${postReplies.map((reply) => `<div class="board-reply"><strong>${escapeHtml(reply.ownerUsername || 'Member')}</strong><p>${escapeHtml(reply.body)}</p></div>`).join('')}</div>${group?.isMember ? `<form class="board-reply-form" data-board-reply-form="${escapeHtml(post.id)}"><input name="body" required maxlength="1000" placeholder="Reply to this post…"><button class="text-button" type="submit">Reply</button></form>` : ''}</article>`;
 }
 
 function boardFeedPage() {
@@ -814,7 +931,7 @@ function boardPage() {
 }
 
 function securitySettings(message = '') {
-  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Manage the details you use to sign in.</p></div><form class="settings-card security-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<section class="security-section"><div><span class="eyebrow">Account details</span><h3>Username</h3><p>This is how you identify yourself when signing in.</p></div><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label></section><section class="security-section"><div><span class="eyebrow">Password</span><h3>Change your password</h3><p>Use at least four characters. You can leave the new password blank to keep the current one.</p></div><div class="security-fields"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label></div></section><div class="security-actions"><button class="button" type="submit">Save changes</button></div></form></section>`;
+  return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Sign-in & security</span><h2>Account access.</h2><p>Manage the details you use to sign in.</p></div><form class="settings-card security-card card" id="minimal-account-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<section class="security-section"><div><span class="eyebrow">Account details</span><h3>Username</h3><p>This is how you identify yourself when signing in.</p></div><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label></section><section class="security-section"><div><span class="eyebrow">Password</span><h3>Change your password</h3><p>Use at least 12 characters. You can leave the new password blank to keep the current one.</p></div><div class="security-fields"><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password<input name="newPassword" type="password" minlength="12" autocomplete="new-password"></label></div></section><div class="security-actions"><button class="button" type="submit">Save changes</button></div></form></section>`;
 }
 
 function profileInitials() {
@@ -824,7 +941,7 @@ function profileInitials() {
 
 function profilePage(message = '') {
   const profile = ensureProfile();
-  const avatar = profile.avatarDataUrl ? `<img src="${escapeHtml(profile.avatarDataUrl)}" alt="">` : `<span>${escapeHtml(profileInitials())}</span>`;
+  const avatar = safeImageDataUrl(profile.avatarDataUrl) ? `<img src="${escapeHtml(safeImageDataUrl(profile.avatarDataUrl))}" alt="">` : `<span>${escapeHtml(profileInitials())}</span>`;
   return `<section class="account-context"><div class="settings-heading"><span class="eyebrow">Your profile</span><h2>Tell us about yourself.</h2><p>This information is private to your account and can be changed whenever you like.</p></div><form class="profile-card card" id="profile-form">${message ? `<p class="form-success">${escapeHtml(message)}</p>` : ''}<div class="profile-identity"><div class="profile-photo-field"><button type="button" class="profile-photo-dropzone" data-avatar-trigger aria-label="Choose a profile picture"><span class="profile-avatar">${avatar}</span><span class="profile-photo-overlay">Change photo</span></button><input id="avatar-input" name="avatar" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="profile-photo-actions"><button type="button" class="text-button" data-avatar-trigger>Upload photo</button><button type="button" class="text-button danger" data-avatar-remove>Remove</button></div><span class="field-note">Drag an image here or choose one. It will be cropped neatly.</span></div></div><div class="profile-fields"><label>Display name<input name="displayName" maxlength="80" value="${escapeHtml(profile.displayName)}" placeholder="How should people see you?"></label><label>About you<textarea name="bio" maxlength="500" placeholder="A few words about yourself">${escapeHtml(profile.bio)}</textarea></label><label>Location<input name="location" maxlength="80" value="${escapeHtml(profile.location)}" placeholder="Optional"></label></div><button class="button" type="submit">Save profile</button></form></section>`;
 }
 
@@ -889,7 +1006,12 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
-const MINIMAL_VIEWS = ['landing', 'portfolio', 'board', 'requests', 'about', 'account', 'signal'];
+const MINIMAL_VIEWS = ['landing', 'portfolio', 'about', 'board', 'requests', 'mcp', 'account'];
+const ADMIN_PAGE_GROUPS = Object.freeze([
+  Object.freeze({ id: 'home', label: 'Home', views: Object.freeze(['landing', 'portfolio', 'about']) }),
+  Object.freeze({ id: 'work', label: 'Work', views: Object.freeze(['board', 'requests', 'mcp']) }),
+]);
+const MINIMAL_VIEW_LABELS = Object.freeze({ landing: 'Home', portfolio: 'Portfolio', board: 'Board', requests: 'Requests', about: 'About', account: 'Account', mcp: 'MCP' });
 const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
 const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
 let minimalGlobalEventsBound = false;
@@ -934,7 +1056,7 @@ function rememberedMinimalAccountPage() {
 function updateMinimalNavigation() {
   const view = root.dataset.minimalView || 'landing';
   const nav = root.querySelector('.editorial-nav nav');
-  const workspaceViews = ['board', 'requests', 'signal'];
+  const workspaceViews = ['board', 'requests', 'mcp'];
   const hasWorkspaceMenu = Boolean(nav?.querySelector('[data-workspace-summary]'));
   const activeSelector = workspaceViews.includes(view) && hasWorkspaceMenu ? '[data-workspace-summary]' : view === 'account' ? '[data-account-summary]' : view === 'landing' ? '[data-minimal-home]' : `[data-minimal-${view}]`;
   const activeLink = nav?.querySelector(activeSelector);
@@ -945,6 +1067,48 @@ function updateMinimalNavigation() {
   root.querySelectorAll('[data-minimal-view-link]').forEach((link) => link.classList.toggle('is-active', link.dataset.minimalViewLink === view));
   root.querySelector('[data-workspace-summary]')?.classList.toggle('is-active', workspaceViews.includes(view));
   root.querySelector('[data-account-summary]')?.classList.toggle('is-active', view === 'account');
+  root.querySelectorAll('[data-admin-page]').forEach((link) => link.classList.toggle('is-active', link.dataset.adminPage === view));
+  root.querySelector('[data-admin-group-label]')?.replaceChildren(document.createTextNode(ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'));
+  root.querySelector('[data-admin-group-prev]')?.setAttribute('aria-label', `Show previous admin section from ${ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'}`);
+  root.querySelector('[data-admin-group-next]')?.setAttribute('aria-label', `Show next admin section from ${ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'}`);
+}
+
+function adminGroupIndexForView(view) {
+  return Math.max(0, ADMIN_PAGE_GROUPS.findIndex((group) => group.views.includes(view)));
+}
+
+function cycleAdminGroup(direction) {
+  if (!currentUser || currentUser.role !== 'admin' || guestMode) return;
+  adminNavCycleDirection = direction < 0 ? -1 : 1;
+  adminNavGroupIndex = (adminNavGroupIndex + direction + ADMIN_PAGE_GROUPS.length) % ADMIN_PAGE_GROUPS.length;
+  adminNavGroupInitialized = true;
+  const view = root.dataset.minimalView || 'landing';
+  renderMinimal(view, '', view === 'account' ? rememberedMinimalAccountPage() : 'profile');
+}
+
+function openAdminPage(view) {
+  if (!currentUser || currentUser.role !== 'admin' || guestMode || !MINIMAL_VIEWS.includes(view)) return;
+  const nextGroupIndex = adminGroupIndexForView(view);
+  adminNavCycleDirection = nextGroupIndex === adminNavGroupIndex ? 0 : nextGroupIndex > adminNavGroupIndex ? 1 : -1;
+  adminNavGroupIndex = nextGroupIndex;
+  adminNavGroupInitialized = true;
+  renderMinimal(view, '', view === 'account' ? rememberedMinimalAccountPage() : 'profile');
+}
+
+function adminPageRail(view) {
+  if (!currentUser || currentUser.role !== 'admin' || guestMode) return '';
+  if (!adminNavGroupInitialized) {
+    adminNavGroupIndex = adminGroupIndexForView(view);
+    adminNavGroupInitialized = true;
+  }
+  const group = ADMIN_PAGE_GROUPS[adminNavGroupIndex] || ADMIN_PAGE_GROUPS[0];
+  return `<div class="admin-group-switcher" aria-label="Admin page sections"><button type="button" class="admin-group-arrow" data-admin-group-prev aria-label="Show previous admin section">←</button><details class="admin-group-menu"><summary><span class="admin-group-menu-label" data-admin-group-label>${group.label}</span><small>${adminNavGroupIndex + 1} / ${ADMIN_PAGE_GROUPS.length}</small></summary><nav class="admin-group-popover" aria-label="${group.label} pages"><span class="editorial-popover-label">${group.label}</span>${group.views.map((page) => `<button type="button" class="admin-group-page${page === view ? ' is-active' : ''}" data-admin-page="${page}">${MINIMAL_VIEW_LABELS[page]}</button>`).join('')}</nav></details><button type="button" class="admin-group-arrow" data-admin-group-next aria-label="Show next admin section">→</button></div>`;
+}
+
+function adminPrimaryNavigation() {
+  const group = ADMIN_PAGE_GROUPS[adminNavGroupIndex] || ADMIN_PAGE_GROUPS[0];
+  const pageAttributes = { landing: 'data-minimal-home', portfolio: 'data-minimal-portfolio', about: 'data-minimal-about', board: 'data-minimal-board', requests: 'data-minimal-requests', mcp: 'data-minimal-mcp' };
+  return `<div class="editorial-nav-center"><nav aria-label="${group.label} navigation">${group.views.map((pageName) => `<button class="editorial-nav-link" ${pageAttributes[pageName]} data-minimal-view-link="${pageName}">${MINIMAL_VIEW_LABELS[pageName]}</button>`).join('')}</nav></div>`;
 }
 
 function updateMinimalViewportHeight() {
@@ -1077,6 +1241,7 @@ function openBoardRepo(repo) {
 
 function bindBoardEvents() {
   document.querySelectorAll('[data-board-mode]').forEach((button) => button.addEventListener('click', () => { boardMode = button.dataset.boardMode; if (boardMode !== 'library') boardRepoViewer = null; renderMinimal('board'); }));
+  document.querySelectorAll('[data-board-project-group]').forEach((button) => button.addEventListener('click', () => { boardFeedGroupId = button.dataset.boardProjectGroup; boardMode = 'feed'; renderMinimal('board'); }));
   document.querySelectorAll('[data-board-open-repo]').forEach((card) => {
     const open = () => { const repo = boardAllRepos(ensureBoardState()).find((item) => (item.full_name || `${item.owner?.login || item.boardOwner}/${item.name}`) === card.dataset.boardOpenRepo); openBoardRepo(repo); };
     card.addEventListener('click', (event) => { if (event.target.closest('a, button')) return; open(); });
@@ -1144,14 +1309,83 @@ function bindBoardRepoFileEvents() {
   document.querySelectorAll('[data-board-context-file]').forEach((row) => row.addEventListener('contextmenu', (event) => { event.preventDefault(); boardRepoViewerContext = { repo: boardRepoDetailKey(boardRepoViewer), path: row.dataset.boardContextFile }; renderMinimal('board'); }));
 }
 
+function bindMcpEvents() {
+  const page = document.querySelector('[data-mcp-page]');
+  if (!page) return;
+  page.addEventListener('click', async (event) => {
+    const target = event.target.closest('button');
+    if (!target || !page.contains(target)) return;
+    const section = target.dataset.mcpSection || target.dataset.mcpSectionLink;
+    if (section) { setMcpSection(section); return; }
+    const text = target.hasAttribute('data-mcp-copy')
+      ? JSON.stringify(mcpBlueprint, null, 2)
+      : target.hasAttribute('data-mcp-copy-endpoint') ? String(globalThis.MULCH_MCP_ENDPOINT || `${window.location.origin}/mcp`).replace(/\/$/, '') : '';
+    if (!text) return;
+    const originalLabel = target.textContent;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+      await navigator.clipboard.writeText(text);
+      target.textContent = 'Copied';
+    } catch {
+      target.textContent = 'Copy unavailable';
+    }
+    window.setTimeout(() => { if (target.isConnected) target.textContent = originalLabel; }, 1400);
+  });
+  page.addEventListener('input', (event) => {
+    if (!event.target.matches('[data-mcp-tool-query]')) return;
+    mcpToolQuery = event.target.value;
+    renderMcpToolCatalog();
+  });
+  page.addEventListener('change', (event) => {
+    if (event.target.matches('[data-mcp-tool-group]')) mcpToolGroup = event.target.value;
+    else if (event.target.matches('[data-mcp-tool-tag]')) mcpToolTag = event.target.value;
+    else return;
+    renderMcpToolCatalog();
+  });
+  page.addEventListener('submit', (event) => {
+    if (!event.target.matches('#mcp-blueprint-form')) return;
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.target));
+    const name = String(values.name || '').trim();
+    const description = String(values.description || '').trim();
+    if (!/^[a-z0-9_]{2,64}$/.test(name) || !description) return;
+    mcpBlueprint = {
+      name,
+      description,
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      metadata: { group: String(values.group || 'Foundation'), tags: String(values.tags || '').split(',').map((tag) => tag.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 8) },
+    };
+    const output = page.querySelector('[data-mcp-blueprint-output]');
+    if (output) output.innerHTML = mcpBlueprintMarkup();
+  });
+  page.addEventListener('keydown', (event) => {
+    if (!event.target.matches('[role="tab"][data-mcp-section]') || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = [...page.querySelectorAll('[role="tab"][data-mcp-section]')];
+    const index = tabs.indexOf(event.target);
+    const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[nextIndex]?.focus();
+    setMcpSection(tabs[nextIndex]?.dataset.mcpSection);
+  });
+}
+
 function bindMinimalEvents(view, page = 'profile') {
   if (!minimalGlobalEventsBound) {
-    document.querySelector('.editorial-nav')?.addEventListener('click', (event) => {
+    root.addEventListener('click', (event) => {
       const target = event.target.closest('button');
       if (!target) return;
       let nextView = '';
       let nextPage = 'profile';
-      if (target.hasAttribute('data-minimal-home')) {
+      if (target.hasAttribute('data-brand-toggle')) {
+        event.preventDefault(); event.stopPropagation(); toggleBrandLayout(); return;
+      } else if (target.hasAttribute('data-admin-group-prev')) {
+        event.preventDefault(); event.stopPropagation(); cycleAdminGroup(-1); return;
+      } else if (target.hasAttribute('data-admin-group-next')) {
+        event.preventDefault(); event.stopPropagation(); cycleAdminGroup(1); return;
+      } else if (target.hasAttribute('data-admin-page')) {
+        event.preventDefault(); event.stopPropagation(); openAdminPage(target.dataset.adminPage); return;
+      } else if (target.hasAttribute('data-minimal-home')) {
         event.preventDefault(); event.stopPropagation();
         if (root.dataset.minimalView === 'board' && target.classList.contains('editorial-brand')) { boardNavExpanded = !boardNavExpanded; root.dataset.boardNavExpanded = String(boardNavExpanded); target.setAttribute('aria-expanded', String(boardNavExpanded)); target.setAttribute('aria-label', boardNavExpanded ? 'Collapse Board navigation' : 'Expand Board navigation'); return; }
         if (target.classList.contains('editorial-brand') && window.matchMedia('(max-width: 37.99rem)').matches) { document.querySelector('[data-menu-toggle]')?.click(); return; }
@@ -1160,7 +1394,7 @@ function bindMinimalEvents(view, page = 'profile') {
       else if (target.hasAttribute('data-minimal-about')) nextView = 'about';
       else if (target.hasAttribute('data-minimal-board')) nextView = 'board';
       else if (target.hasAttribute('data-minimal-requests')) nextView = 'requests';
-      else if (target.hasAttribute('data-minimal-signal')) nextView = 'signal';
+      else if (target.hasAttribute('data-minimal-mcp')) nextView = 'mcp';
       else if (target.hasAttribute('data-minimal-account')) nextView = 'account';
       else if (target.hasAttribute('data-minimal-account-page')) { nextView = 'account'; nextPage = target.dataset.minimalAccountPage; }
       if (!nextView) return;
@@ -1204,6 +1438,7 @@ function bindMinimalEvents(view, page = 'profile') {
   }
   if (view === 'board') { if (boardMode === 'feed') bindBoardSocialEvents(); else if (boardMode === 'ideas') bindBoardIdeaEvents(); else if (boardMode === 'requests') bindSupportReviewEvents(); else bindBoardEvents(); }
   if (view === 'requests') bindSupportRequestEvents();
+  if (view === 'mcp') bindMcpEvents();
   if (view === 'account' && page === 'board') bindBoardGithubEvents();
   document.querySelectorAll('[data-account-page]').forEach((button) => button.addEventListener('click', () => renderMinimal('account', '', button.dataset.accountPage)));
   const avatarInput = document.querySelector('#avatar-input');
@@ -1283,24 +1518,27 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   if (!shell) {
     const guestNav = '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>';
     const memberNav = '<nav aria-label="Member navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-requests data-minimal-view-link="requests">Requests</button></nav>';
-    const adminNav = '<nav aria-label="Primary navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><details class="editorial-nav-menu editorial-workspace-menu"><summary class="editorial-nav-link" data-workspace-summary>Workspace <span aria-hidden="true">⌄</span></summary><div class="editorial-nav-popover"><span class="editorial-popover-label">Workspace</span><button type="button" data-minimal-board><strong>Board</strong><small>Projects, groups, and ideas</small></button><button type="button" data-minimal-requests><strong>Requests</strong><small>Features and bug reports</small></button><button type="button" data-minimal-signal><strong>Signal</strong><small>Your private activity</small></button></div></details></nav>';
+    const adminGroupControl = isAdmin && !guestMode ? adminPageRail(view) : '';
+    const adminNav = isAdmin && !guestMode ? adminPrimaryNavigation() : '';
     const nav = guestMode ? guestNav : isAdmin ? adminNav : memberNav;
     const menu = '<button class="editorial-menu" data-menu-toggle aria-expanded="false" aria-controls="mobile-nav"><span class="menu-word">Menu</span><span class="menu-close">×</span></button>';
     const ctaLabel = guestMode ? 'Exit' : 'Log out';
-    const memberAccountMenu = `<details class="editorial-nav-menu editorial-account-menu"><summary class="editorial-account-trigger" aria-label="Open member menu"><span>${escapeHtml(profileInitials())}</span></summary><div class="editorial-nav-popover"><span class="editorial-popover-label">${escapeHtml(ensureProfile().displayName || currentUser.username)}</span><button type="button" class="editorial-popover-logout" data-minimal-logout><strong>Log out</strong></button></div></details>`;
     const adminAccountMenu = `<details class="editorial-nav-menu editorial-account-menu"><summary class="editorial-account-trigger" data-account-summary aria-label="Open account menu"><span>${escapeHtml(profileInitials())}</span></summary><div class="editorial-nav-popover"><span class="editorial-popover-label">${escapeHtml(ensureProfile().displayName || currentUser.username)}</span><button type="button" data-minimal-account><strong>Profile</strong><small>Your public details</small></button><button type="button" data-minimal-account-page="board"><strong>Board setup</strong><small>GitHub connections</small></button><button type="button" data-minimal-account-page="security"><strong>Security</strong><small>Sign-in and password</small></button><button type="button" class="editorial-popover-logout" data-minimal-logout><strong>Log out</strong></button></div></details>`;
-    const accountMenu = guestMode ? `<button class="editorial-nav-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>` : isAdmin ? adminAccountMenu : memberAccountMenu;
-    const mobilePrivateNav = guestMode ? '' : isAdmin ? '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-signal>Signal</button>' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button>';
+    const memberExitControl = `<button class="editorial-nav-exit" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>`;
+    const guestExitControl = `<button class="editorial-nav-exit" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>`;
+    const navActions = guestMode ? `<div class="editorial-nav-actions">${guestExitControl}</div>` : isAdmin ? `<div class="editorial-nav-actions">${adminGroupControl}${adminAccountMenu}</div>` : `<div class="editorial-nav-actions">${memberExitControl}</div>`;
+    const mobilePrivateNav = guestMode ? '' : isAdmin ? '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-mcp>MCP</button>' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button>';
     const mobileBoardNav = isAdmin ? '<button class="editorial-mobile-link" data-minimal-board>Board</button>' : '';
     const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
-    const brandLabel = view === 'board' ? 'Toggle Board navigation' : 'The Mulch Garden home';
-    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : ''}"><button class="editorial-brand" data-minimal-home aria-label="${brandLabel}"${view === 'board' ? ` aria-expanded="${boardNavExpanded}"` : ''}><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span><span>The Mulch Garden</span></button>${nav}${accountMenu}${menu}</div>${mobileNav}</header>`;
+    const brandLabel = brandExpanded ? 'Collapse Mulch Garden navigation' : 'Expand Mulch Garden navigation';
+    root.dataset.brandExpanded = String(brandExpanded);
+    const header = `<header class="editorial-nav"><div class="editorial-nav-row${guestMode ? ' guest-mode' : isAdmin ? ' admin-mode' : ''}"><div class="editorial-brand-section"><button class="editorial-brand" data-brand-toggle aria-expanded="${brandExpanded}" aria-label="${brandLabel}"><span class="brand-mark" aria-hidden="true"><svg class="brand-glyph" viewBox="0 0 32 32" focusable="false"><circle cx="16" cy="16" r="11.25" class="brand-orbit"></circle><path d="M9.5 20.6c2.2-5.9 4.35-9.1 6.45-9.1 2.25 0 4.38 3.3 6.55 9.9" class="brand-stem"></path><path d="M11.2 13.5c1.6 1.2 3.15 1.35 4.8.35 1.45-.88 2.78-.75 4.8.55" class="brand-leaf"></path><circle cx="16" cy="16" r="1.4" class="brand-core"></circle></svg></span></button><button class="editorial-brand-name" data-minimal-home aria-label="Go to The Mulch Garden home">The Mulch Garden</button></div>${nav}${navActions}${menu}</div>${mobileNav}</header>`;
     const portfolioSlide = `<section class="minimal-slide" data-minimal-slide="portfolio">${renderPortfolioPage()}</section>`;
     const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${isAdmin ? boardPage() : ''}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
     const requestsSlide = `<section class="minimal-slide" data-minimal-slide="requests">${guestMode ? '' : requestsPage()}</section>`;
-    const privateSlides = isAdmin ? `<section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section><section class="minimal-slide" data-minimal-slide="signal">${signalPage()}</section>` : '';
-    root.innerHTML = `${header}${adminPreviewControl()}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${boardSlide}${requestsSlide}${aboutSlide}${privateSlides}</div></div>`;
+    const privateSlides = isAdmin ? `<section class="minimal-slide" data-minimal-slide="mcp">${mcpPage()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section>` : '';
+    root.innerHTML = `${header}${adminPreviewControl()}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${aboutSlide}${boardSlide}${requestsSlide}${privateSlides}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
     if (view === 'board') { queueBoardSocial(); if (boardMode === 'library') { queueBoardProfileLoads(); queueBoardSharedProjects(); } else if (boardMode === 'requests') refreshSupportRequests().catch(() => {}); }
@@ -1315,10 +1553,27 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const requestsSlide = root.querySelector('[data-minimal-slide="requests"]');
     if (requestsSlide) requestsSlide.innerHTML = requestsPage();
     bindSupportRequestEvents();
+  } else if (view === 'mcp') {
+    const mcpSlide = root.querySelector('[data-minimal-slide="mcp"]');
+    if (mcpSlide) mcpSlide.innerHTML = mcpPage();
+    bindMcpEvents();
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
+  }
+  const rail = adminPageRail(view);
+  const existingRail = root.querySelector('.admin-group-switcher');
+  if (existingRail && rail) existingRail.outerHTML = rail;
+  else if (!existingRail && rail) root.querySelector('.editorial-nav-row')?.insertAdjacentHTML('beforeend', rail);
+  else if (existingRail && !rail) existingRail.remove();
+  const existingPrimaryNav = root.querySelector('.editorial-nav-center');
+  if (existingPrimaryNav && currentUser?.role === 'admin' && !guestMode) {
+    existingPrimaryNav.outerHTML = adminPrimaryNavigation();
+    if (adminNavCycleDirection) {
+      root.querySelector('.editorial-nav-center')?.classList.add(adminNavCycleDirection > 0 ? 'page-switch-forward' : 'page-switch-backward');
+    }
+    adminNavCycleDirection = 0;
   }
   const track = root.querySelector('.minimal-track');
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * (100 / MINIMAL_VIEWS.length)}%`);
@@ -1367,7 +1622,7 @@ function renderAuth(message = '', loginOpen = false) {
 
 function renderAccountSettings(message = '') {
   const summary = summarizePreferences(state.interests);
-  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="account-title"><div class="modal-topline"><span class="eyebrow">Account settings</span><button class="text-button" data-action="close-account">Close</button></div><h2 id="account-title">Update your sign-in</h2><article class="account-summary"><span class="eyebrow">What we know about you</span><p>${escapeHtml(summary.text)}</p><span class="field-note">Based on your saved, editable interests.</span></article><p>Changing your username or password ends the current login after this update.</p>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="account-form" class="account-form"><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password <span class="field-note">leave blank to keep it</span><input name="newPassword" type="password" minlength="4" autocomplete="new-password"></label><button class="button" type="submit">Save changes</button></form></section></div>`;
+  document.querySelector('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="onboarding-modal card" role="dialog" aria-modal="true" aria-labelledby="account-title"><div class="modal-topline"><span class="eyebrow">Account settings</span><button class="text-button" data-action="close-account">Close</button></div><h2 id="account-title">Update your sign-in</h2><article class="account-summary"><span class="eyebrow">What we know about you</span><p>${escapeHtml(summary.text)}</p><span class="field-note">Based on your saved, editable interests.</span></article><p>Changing your username or password ends the current login after this update.</p>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="account-form" class="account-form"><label>Username<input name="username" required value="${escapeHtml(currentUser.username)}" autocomplete="username"></label><label>Current password<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>New password <span class="field-note">leave blank to keep it</span><input name="newPassword" type="password" minlength="12" autocomplete="new-password"></label><button class="button" type="submit">Save changes</button></form></section></div>`;
   document.querySelector('[data-action="close-account"]').addEventListener('click', () => { document.querySelector('#modal-root').innerHTML = ''; });
   document.querySelector('#account-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await updateAccount(Object.fromEntries(values)); document.querySelector('#modal-root').innerHTML = ''; render(); } catch (error) { renderAccountSettings(error.message); } });
 }
