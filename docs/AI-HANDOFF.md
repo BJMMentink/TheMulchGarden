@@ -48,6 +48,8 @@ The public MCP URL is the Worker endpoint `https://the-mulch-garden-api.bjmmenti
 
 The private pages share a persistent shell. A new page must be added to the existing-shell branch of `renderMinimal`, not only to the initial HTML. Otherwise the navigation can select the view while leaving the previous page's content in place and its controls unbound. MCP catalog filtering is updated in place to preserve search focus.
 
+Admin Home and Work sections remember their last selected page independently in user-scoped local storage. When a saved page is no longer in that section or available, navigation falls back to that section's first available page (Home, or Board for Work). A Home/Work section switch must open that remembered/default page, not leave the old section's slide active. The carousel transition completion handler must ignore bubbled transitions from header controls and only finish on the track's own `transform` transition; otherwise fast tab changes can settle at the wrong time. Clicking the expanded brand name routes to Home and selects the Home section.
+
 Do not store or return Codex billing details, payment information, API keys, OAuth refresh tokens, passwords, or other financial credentials. Before adding a money-related tool, require OAuth 2.1 user authorization, HTTPS, per-user authorization, application-layer authenticated encryption for stored sensitive values, and explicit confirmation for consequential actions.
 
 ## Current deployment

@@ -6,6 +6,7 @@ import { createWordleState, getDailyAnswer, getWordleDate, resetWordleForDate, s
 import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
 import { boardSocialAction, createSupportRequest, getCurrentUser, loadBoardProjects, loadBoardSocial, loadChatMessages, loadDailyWordle, loadMembers, loadState, loadSupportRequests, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount, updateSupportRequest } from './storage.js';
+import { cycleAdminGroupIndex, findAdminGroupIndex, resolveAdminGroupView } from './admin-navigation.js';
 
 let state;
 let currentUser;
@@ -1014,7 +1015,9 @@ const ADMIN_PAGE_GROUPS = Object.freeze([
 const MINIMAL_VIEW_LABELS = Object.freeze({ landing: 'Home', portfolio: 'Portfolio', board: 'Board', requests: 'Requests', about: 'About', account: 'Account', mcp: 'MCP' });
 const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
 const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
+const MINIMAL_ADMIN_GROUP_STORAGE_PREFIX = 'mg_last_admin_group_view:';
 let minimalGlobalEventsBound = false;
+let minimalTrackTransitionCleanup = null;
 
 function minimalViewIndex(view) { return Math.max(0, MINIMAL_VIEWS.indexOf(view)); }
 
@@ -1032,12 +1035,28 @@ function rememberedMinimalView() {
   }
 }
 
+function rememberedAdminGroupView(group) {
+  const resolve = (storedView) => resolveAdminGroupView(group, storedView, MINIMAL_VIEWS);
+  try {
+    const storedView = localStorage.getItem(minimalStorageKey(`${MINIMAL_ADMIN_GROUP_STORAGE_PREFIX}${group.id}:`));
+    return resolve(storedView) || 'landing';
+  } catch {
+    return resolve(null) || 'landing';
+  }
+}
+
 function rememberMinimalView(view, page) {
   if (!MINIMAL_VIEWS.includes(view)) return;
+  const adminGroup = currentUser?.role === 'admin' && !guestMode
+    ? ADMIN_PAGE_GROUPS.find((group) => group.views.includes(view))
+    : null;
   try {
     localStorage.setItem(minimalStorageKey(MINIMAL_VIEW_STORAGE_PREFIX), view);
     if (view === 'account' && ['profile', 'security'].includes(page)) {
       localStorage.setItem(minimalStorageKey(MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX), page);
+    }
+    if (adminGroup) {
+      localStorage.setItem(minimalStorageKey(`${MINIMAL_ADMIN_GROUP_STORAGE_PREFIX}${adminGroup.id}:`), view);
     }
   } catch {
     // The dashboard remains usable when localStorage is unavailable.
@@ -1074,31 +1093,39 @@ function updateMinimalNavigation() {
 }
 
 function adminGroupIndexForView(view) {
-  return Math.max(0, ADMIN_PAGE_GROUPS.findIndex((group) => group.views.includes(view)));
+  return findAdminGroupIndex(ADMIN_PAGE_GROUPS, view);
 }
 
 function cycleAdminGroup(direction) {
   if (!currentUser || currentUser.role !== 'admin' || guestMode) return;
+  const nextGroupIndex = cycleAdminGroupIndex(ADMIN_PAGE_GROUPS, adminNavGroupIndex, direction);
+  const nextGroup = ADMIN_PAGE_GROUPS[nextGroupIndex];
+  const view = rememberedAdminGroupView(nextGroup);
+  if (!view) return;
   adminNavCycleDirection = direction < 0 ? -1 : 1;
-  adminNavGroupIndex = (adminNavGroupIndex + direction + ADMIN_PAGE_GROUPS.length) % ADMIN_PAGE_GROUPS.length;
-  adminNavGroupInitialized = true;
-  const view = root.dataset.minimalView || 'landing';
-  renderMinimal(view, '', view === 'account' ? rememberedMinimalAccountPage() : 'profile');
-}
-
-function openAdminPage(view) {
-  if (!currentUser || currentUser.role !== 'admin' || guestMode || !MINIMAL_VIEWS.includes(view)) return;
-  const nextGroupIndex = adminGroupIndexForView(view);
-  adminNavCycleDirection = nextGroupIndex === adminNavGroupIndex ? 0 : nextGroupIndex > adminNavGroupIndex ? 1 : -1;
   adminNavGroupIndex = nextGroupIndex;
   adminNavGroupInitialized = true;
   renderMinimal(view, '', view === 'account' ? rememberedMinimalAccountPage() : 'profile');
 }
 
+function openAdminPage(view, page = '') {
+  if (!currentUser || currentUser.role !== 'admin' || guestMode || !MINIMAL_VIEWS.includes(view)) return;
+  const nextGroupIndex = adminGroupIndexForView(view);
+  if (nextGroupIndex >= 0) {
+    adminNavCycleDirection = nextGroupIndex === adminNavGroupIndex ? 0 : nextGroupIndex > adminNavGroupIndex ? 1 : -1;
+    adminNavGroupIndex = nextGroupIndex;
+  } else {
+    adminNavCycleDirection = 0;
+  }
+  adminNavGroupInitialized = true;
+  renderMinimal(view, '', view === 'account' ? page || rememberedMinimalAccountPage() : 'profile');
+}
+
 function adminPageRail(view) {
   if (!currentUser || currentUser.role !== 'admin' || guestMode) return '';
   if (!adminNavGroupInitialized) {
-    adminNavGroupIndex = adminGroupIndexForView(view);
+    const viewGroupIndex = adminGroupIndexForView(view);
+    adminNavGroupIndex = viewGroupIndex >= 0 ? viewGroupIndex : 0;
     adminNavGroupInitialized = true;
   }
   const group = ADMIN_PAGE_GROUPS[adminNavGroupIndex] || ADMIN_PAGE_GROUPS[0];
@@ -1398,7 +1425,9 @@ function bindMinimalEvents(view, page = 'profile') {
       else if (target.hasAttribute('data-minimal-account')) nextView = 'account';
       else if (target.hasAttribute('data-minimal-account-page')) { nextView = 'account'; nextPage = target.dataset.minimalAccountPage; }
       if (!nextView) return;
-      event.preventDefault(); event.stopPropagation(); renderMinimal(nextView, '', nextPage);
+      event.preventDefault(); event.stopPropagation();
+      if (currentUser?.role === 'admin' && !guestMode) openAdminPage(nextView, nextPage);
+      else renderMinimal(nextView, '', nextPage);
     }, true);
     document.querySelectorAll('[data-admin-preview]').forEach((button) => button.addEventListener('click', () => switchAdminPreview(button.dataset.adminPreview)));
     document.querySelectorAll('[data-minimal-logout]').forEach((button) => button.addEventListener('click', async () => {
@@ -1482,6 +1511,10 @@ function bindSupportReviewEvents() {
 }
 
 function renderMinimal(view = rememberedMinimalView(), message = '', page = rememberedMinimalAccountPage()) {
+  if (minimalTrackTransitionCleanup) {
+    minimalTrackTransitionCleanup();
+    minimalTrackTransitionCleanup = null;
+  }
   root.querySelectorAll('.editorial-nav-menu[open]').forEach((menu) => menu.removeAttribute('open'));
   const isAdmin = currentUser?.role === 'admin';
   if (guestMode) {
@@ -1597,12 +1630,24 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     if (view === 'landing' && waitsForSlide) heroIntroResetTimer = window.setTimeout(activateLandingView, APP_CONFIG.performance.heroIntroResetMs);
     else activateLandingView();
   };
-  if (waitsForSlide && track) track.addEventListener('transitionend', finishViewTransition, { once: true });
-  else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
+  if (waitsForSlide && track) {
+    const onTrackTransitionEnd = (event) => {
+      if (event.target !== track || event.propertyName !== 'transform') return;
+      minimalTrackTransitionCleanup?.();
+      minimalTrackTransitionCleanup = null;
+      finishViewTransition();
+    };
+    minimalTrackTransitionCleanup = () => track.removeEventListener('transitionend', onTrackTransitionEnd);
+    track.addEventListener('transitionend', onTrackTransitionEnd);
+  } else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
   if (view === 'requests') queueBoardSharedProjects();
 }
 
 function renderAuth(message = '', loginOpen = false) {
+  if (minimalTrackTransitionCleanup) {
+    minimalTrackTransitionCleanup();
+    minimalTrackTransitionCleanup = null;
+  }
   authLoginOpen = loginOpen;
   heroIntroConsumed = false;
   heroIntroResetting = false;
