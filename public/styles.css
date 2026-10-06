@@ -1023,7 +1023,10 @@ html.is-low-power.is-away-from-top .editorial-nav, html.is-low-power .bottom-nav
 .godside-app-message { border: 1px solid rgba(230, 149, 159, 0.3); border-radius: 0.6rem; padding: 0.85rem 1rem; color: #f0bdc2; font-size: 0.85rem; line-height: 1.5; }
 .godside-app-message[hidden] { display: none; }
 .godside-guide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+.minimal-slide[data-minimal-slide="godside"] { overflow: visible; contain: layout style; content-visibility: visible; }
 .godside-guide-section { min-width: 0; overflow: hidden; border: 1px solid rgba(243, 238, 233, 0.14); border-radius: 0.65rem; background: rgba(14, 13, 16, 0.94); }
+.godside-guide-section-wide { grid-column: 1 / -1; }
+.godside-guide-section-wide .godside-guide-content { max-width: 58rem; margin-inline: auto; }
 .godside-guide-section summary { display: flex; min-height: 3.3rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; color: #f3eee9; font-size: 0.9rem; font-weight: 700; cursor: pointer; list-style: none; }
 .godside-guide-section summary::-webkit-details-marker { display: none; }
 .godside-guide-section summary::after { content: '+'; flex: 0 0 auto; color: #e6959f; font-size: 1.25rem; font-weight: 400; }

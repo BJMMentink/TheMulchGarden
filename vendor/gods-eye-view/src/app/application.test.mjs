@@ -213,10 +213,12 @@ test('different application instances do not share lifecycle state', async () =>
 });
 
 test('the separate viewer export imports without constructing a browser viewer', async () => {
-  const { createApplicationViewer } =
+  const { createApplicationViewer, getViewerRenderProfile } =
     await import('gods-eye-view/application/viewer');
   assert.equal(typeof createApplicationViewer, 'function');
   assert.throws(() => createApplicationViewer({}), /containers are required/);
+  assert.deepEqual(getViewerRenderProfile('?embed=1&render=balanced'), { msaaSamples: 2, targetFrameRate: 30 });
+  assert.deepEqual(getViewerRenderProfile('?embed=1'), { msaaSamples: 4, targetFrameRate: 60 });
 });
 
 function pinchFixture({ zoomEventTypes } = {}) {

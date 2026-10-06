@@ -8,3 +8,5 @@ Thumbs.db
 *.log
 .env
 .env.*
+# Local-only Codex project context; do not publish this file.
+/AGENTS.md

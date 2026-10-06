@@ -1181,6 +1181,17 @@ function updateMinimalViewportHeight() {
   if (viewport && activeSlide) viewport.style.height = `${activeSlide.scrollHeight}px`;
 }
 
+function bindGodsideGuideHeight(slide) {
+  if (!slide || slide.dataset.guideHeightBound === 'true') return;
+  slide.dataset.guideHeightBound = 'true';
+  slide.querySelectorAll('.godside-guide-section').forEach((section) => {
+    section.addEventListener('toggle', () => {
+      if (root.dataset.minimalView !== 'godside') return;
+      window.requestAnimationFrame(updateMinimalViewportHeight);
+    });
+  });
+}
+
 function resetMinimalScrollPosition() {
   const reset = () => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -1629,12 +1640,16 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     bindMcpEvents();
   } else if (view === 'godside') {
     const godsideSlide = root.querySelector('[data-minimal-slide="godside"]');
-    if (godsideSlide && !godsideSlide.querySelector('[data-godside-globe]')) godsideSlide.innerHTML = renderGodsidePanel();
+    if (godsideSlide && !godsideSlide.querySelector('[data-godside-globe]')) {
+      godsideSlide.innerHTML = renderGodsidePanel();
+      delete godsideSlide.dataset.guideHeightBound;
+    }
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
   }
+  if (view === 'godside') bindGodsideGuideHeight(root.querySelector('[data-minimal-slide="godside"]'));
   const rail = adminPageRail(view);
   const existingRail = root.querySelector('.admin-group-switcher');
   if (existingRail && rail) existingRail.outerHTML = rail;

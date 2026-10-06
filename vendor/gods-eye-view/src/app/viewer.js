@@ -102,10 +102,18 @@ export function installTrackpadPinchZoom(
   };
 }
 
+export function getViewerRenderProfile(search = '') {
+  const balanced = new URLSearchParams(search).get('render') === 'balanced';
+  return { msaaSamples: balanced ? 2 : 4, targetFrameRate: balanced ? 30 : 60 };
+}
+
 /** Create the standard globe viewer in caller-owned, visible containers. */
 export function createApplicationViewer({ container, creditContainer }) {
   if (!container || !creditContainer)
     throw new TypeError('Viewer and credit containers are required');
+  // The hosted, framed experience can opt into a lighter GPU profile without
+  // changing the full local app or disabling any of its controls/layers.
+  const renderProfile = getViewerRenderProfile(globalThis.location?.search);
   const viewer = new Cesium.Viewer(container, {
     timeline: false,
     animation: false,
@@ -120,11 +128,11 @@ export function createApplicationViewer({ container, creditContainer }) {
     infoBox: false,
     baseLayer: false,
     creditContainer,
-    msaaSamples: 4,
+    msaaSamples: renderProfile.msaaSamples,
     contextOptions: { webgl: { preserveDrawingBuffer: true } },
   });
   try {
-    viewer.targetFrameRate = 60;
+    viewer.targetFrameRate = renderProfile.targetFrameRate;
     // Before any tile builds a draw command: Cesium's per-vertex model
     // atmosphere fails to LINK on Apple's Metal backend and kills the
     // render loop. See app/atmosphereCompat.js.

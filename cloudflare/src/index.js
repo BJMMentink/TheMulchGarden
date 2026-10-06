@@ -1,5 +1,6 @@
 import { decryptGodsideKey, encryptGodsideKey, godsideKeyStatuses, normalizeGodsideKey, validateGodsideProvider, GODSIDE_PROVIDERS } from '../../src/godside-crypto.js';
 import { encryptGodseyeSetupUpdates, godseyeSetupStatus } from '../../src/godside-setup.js';
+import { handleGodsidePublicFeed } from './godside-public-feeds.js';
 
 const SESSION_COOKIE = 'mg_session';
 const DEFAULT_SESSION_DAYS = 14;
@@ -642,12 +643,15 @@ async function route(request, env) {
   if (request.method === 'POST' && url.pathname === '/api/auth/login') return login(request, env);
   const user = await currentUser(request, env);
   if (!user) throw Object.assign(new Error('Authentication required.'), { status: 401 });
+  if (!['user', 'admin'].includes(user.role)) throw Object.assign(new Error('Member access required.'), { status: 403 });
+  const godsideFeed = await handleGodsidePublicFeed(request);
+  if (godsideFeed) return godsideFeed;
   if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
     const token = tokenFrom(request); if (token) await env.DB.prepare('DELETE FROM sessions WHERE digest = ?').bind(await digest(token)).run();
     return json({ ok: true }, 200, { 'Set-Cookie': expiredCookie() });
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
-  if (request.method === 'GET' && url.pathname === '/api/godside/app-config') return json({ available: true, url: '/godseye/?embed=1' });
+  if (request.method === 'GET' && url.pathname === '/api/godside/app-config') return json({ available: true, url: '/godseye/?embed=1&render=balanced' });
   if (request.method === 'GET' && url.pathname === '/api/setup/status') return godseyePowerUpStatus(env, user);
   if (request.method === 'POST' && url.pathname === '/api/setup/keys') return saveGodseyePowerUpKeys(request, env, user);
   if (request.method === 'GET' && url.pathname === '/api/godside/keys') return godsideKeyStatus(env, user);

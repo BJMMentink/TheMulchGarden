@@ -148,5 +148,5 @@ test('Cloudflare exposes the same-origin app route only to an authenticated memb
   const { env } = createEnvironment();
   assert.equal((await call(env, 'GET', '/api/godside/app-config')).response.status, 401);
   const member = await call(env, 'GET', '/api/godside/app-config', 'member-one');
-  assert.deepEqual(member.payload, { available: true, url: '/godseye/?embed=1' });
+  assert.deepEqual(member.payload, { available: true, url: '/godseye/?embed=1&render=balanced' });
 });
