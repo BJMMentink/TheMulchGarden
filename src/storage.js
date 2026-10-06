@@ -30,3 +30,9 @@ export async function loadAdminUsers() { return (await request('/api/admin/users
 export async function createAdminUser(user) { return (await request('/api/admin/users', { method: 'POST', body: JSON.stringify(user) })).user; }
 export async function saveState(state) { return request('/api/state', { method: 'PUT', body: JSON.stringify(state) }); }
 export async function updateAccount(account) { return (await request('/api/auth/me', { method: 'PATCH', body: JSON.stringify(account) })).user; }
+export async function getGodsideKeyStatuses() { return request('/api/godside/keys'); }
+export async function getGodsideAppConfig() { return request('/api/godside/app-config'); }
+export async function saveGodsideKey(provider, key, enabled = false) { return request('/api/godside/keys', { method: 'PUT', body: JSON.stringify({ provider, key, enabled }) }); }
+export async function setGodsideKeyEnabled(provider, enabled) { return request(`/api/godside/keys/${encodeURIComponent(provider)}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }); }
+export async function deleteGodsideKey(provider) { return request(`/api/godside/keys/${encodeURIComponent(provider)}`, { method: 'DELETE' }); }
+export async function getGodsideRuntimeConfig() { return request('/api/godside/runtime'); }

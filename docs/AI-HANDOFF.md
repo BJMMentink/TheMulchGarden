@@ -50,7 +50,7 @@ The private pages share a persistent shell. A new page must be added to the exis
 
 Admin Home and Work sections remember their last selected page independently in user-scoped local storage. When a saved page is no longer in that section or available, navigation falls back to that section's first available page (Home, or Board for Work). A Home/Work section switch must open that remembered/default page, not leave the old section's slide active. The carousel transition completion handler must ignore bubbled transitions from header controls and only finish on the track's own `transform` transition; otherwise fast tab changes can settle at the wrong time. Clicking the expanded brand name routes to Home and selects the Home section.
 
-Do not store or return Codex billing details, payment information, API keys, OAuth refresh tokens, passwords, or other financial credentials. Before adding a money-related tool, require OAuth 2.1 user authorization, HTTPS, per-user authorization, application-layer authenticated encryption for stored sensitive values, and explicit confirmation for consequential actions.
+Do not store or return Codex billing details, payment information, OAuth refresh tokens, passwords, or other financial credentials. Godside's provider API keys are a narrowly scoped exception: keep them encrypted per user as documented in [`GODSIDE.md`](GODSIDE.md), never place them in general app state, and never return plaintext keys to the browser. Before adding a money-related tool, require OAuth 2.1 user authorization, HTTPS, per-user authorization, application-layer authenticated encryption for stored sensitive values, and explicit confirmation for consequential actions.
 
 ## Current deployment
 
@@ -59,6 +59,14 @@ As of 2026-09-27, the updated Cloudflare Worker is deployed at `https://the-mulc
 The deployment used the existing Worker and D1 configuration only. No Cloudflare plan upgrade or paid-only service was enabled. The Codex plugin configuration points to the deployed HTTPS endpoint and still requires `MCP_TOKEN` to be supplied through the host’s secure environment.
 
 The MCP page replaces the former Signal page in the administrator view. The admin top bar includes persistent left and right arrows that cycle through the available pages.
+
+## Navigation animation discovery
+
+Keep the primary navigation DOM (especially its `<nav>` element) mounted while changing pages within a section. Replacing it resets the moving `::before` tab indicator to its default Home position, which looks like a Home detour on forward moves and a missing animation on moves back to Home. Update the active indicator on the existing element so every tab direction animates directly. The Home/Portfolio/About navigation is positioned from the header's true midpoint rather than balanced against unequal side controls; the brand open/close jiggle runs in reverse on close.
+
+## God’s Eye View integration
+
+The authenticated member/admin carousel has a third `World` section containing the genuine upstream God’s Eye View app. The local Vite companion and all `/api/godside/*` routes require an authenticated app session. Keys are per-user and encrypted at rest; provider enablement is explicit, browser map keys are returned only to their owning user's app, and OpenAI stays server-side. The companion currently runs locally only; Cloudflare has the encrypted key storage but not the companion service. Read [`GODSIDE.md`](GODSIDE.md) before changing this integration.
 
 ## Continuation checklist
 

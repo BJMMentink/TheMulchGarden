@@ -8,6 +8,9 @@ import { createAppController } from './server/controllers/app-controller.js';
 import { createRouter } from './server/router.js';
 import { createMcpHandler } from './server/mcp.js';
 import { Repository } from './server/models/repository.js';
+import { createGodsideKeysController } from './server/controllers/godside-keys-controller.js';
+import { loadOrCreateLocalEncryptionSecret } from './server/lib/local-encryption-secret.js';
+import { startGodsideViewServer } from './server/godside-view-server.js';
 
 const PROJECT_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_ROOT = join(PROJECT_ROOT, 'public');
@@ -16,7 +19,11 @@ const MIME_TYPES = Object.freeze({ '.css': 'text/css; charset=utf-8', '.html': '
 const repository = new Repository(SERVER_CONFIG.dataDirectory);
 const auth = createAuthController(repository, SERVER_CONFIG);
 const app = createAppController(repository, auth, SERVER_CONFIG);
-const routeApi = createRouter({ auth, app, bodyLimit: SERVER_CONFIG.bodyLimitBytes });
+const godsideKeyEncryptionSecret = SERVER_CONFIG.godsideKeyEncryptionSecret || await loadOrCreateLocalEncryptionSecret(join(SERVER_CONFIG.dataDirectory, 'godside-key-encryption.secret'));
+const godsideKeys = createGodsideKeysController(repository, godsideKeyEncryptionSecret);
+await repository.ensureBootstrapAccount();
+const godsideView = await startGodsideViewServer(PROJECT_ROOT, SERVER_CONFIG.godsidePort, SERVER_CONFIG.port, SERVER_CONFIG.dataDirectory);
+const routeApi = createRouter({ auth, app, bodyLimit: SERVER_CONFIG.bodyLimitBytes, godsideKeys, godsideView });
 const handleMcp = createMcpHandler({
   auth,
   app,
@@ -48,5 +55,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-await repository.ensureBootstrapAccount();
 server.listen(SERVER_CONFIG.port, SERVER_CONFIG.host, () => console.log(`The Mulch Garden is running at http://${SERVER_CONFIG.host}:${SERVER_CONFIG.port}`));

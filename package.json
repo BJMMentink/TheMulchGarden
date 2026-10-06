@@ -6,9 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "build:godseye": "node scripts/build-godseye.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24.14.0 <25 || >=26 <27"
   }
 }

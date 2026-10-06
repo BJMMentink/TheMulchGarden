@@ -1,0 +1,23 @@
+  <!-- POWER UP — God’s Eye's native key setup, backed by the signed-in
+       Mulch Garden account when used inside that application. -->
+  <button id="key-setup-chip" type="button" hidden aria-haspopup="dialog" aria-controls="key-setup">
+    <span class="material-symbols-outlined" aria-hidden="true">bolt</span>
+    <span data-key-setup-chip-label>POWER UP</span>
+  </button>
+  <aside id="key-setup" role="dialog" aria-labelledby="key-setup-title" aria-describedby="key-setup-description" hidden>
+    <div class="key-setup-scanline" aria-hidden="true"></div>
+    <header class="key-setup-header">
+      <span class="key-setup-kicker">GROUND STATION · PROVIDER SETTINGS</span>
+      <button type="button" class="key-setup-close" data-key-setup-close aria-label="Close key setup">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </header>
+    <h2 id="key-setup-title">Power up the globe</h2>
+    <p id="key-setup-description">The globe has keyless feeds; no key is required to start. Each row shows the provider’s current free allowance, restrictions, or billing risk. Saving a key does not itself start usage, but turning on its feature can consume your provider allowance or cost money. In Mulch Garden, keys are encrypted and tied to your account. Google Maps and Cesium ion keys are used in your browser, so restrict them to this website. Other keys stay on the server. Some feeds are not connected to account-isolated Cloudflare routes yet.</p>
+    <div class="key-setup-rows" data-key-setup-rows></div>
+    <div class="key-setup-footer">
+      <button type="button" class="key-setup-apply" data-key-setup-apply>SAVE KEYS</button>
+      <span class="key-setup-hint">Check quotas before enabling paid services · ESC to close</span>
+    </div>
+    <p class="key-setup-note" data-key-setup-status role="status" aria-live="polite">Optional keys are your choice. Google requires billing for photorealistic tiles; OpenAI is usage-billed. Keep both blank to keep those services off.</p>
+  </aside>

@@ -4,7 +4,7 @@ The Mulch Garden is a lightweight, mobile-first MVC web application for projects
 
 ## Run locally
 
-Requirements: Node.js 20 or newer. There are no runtime or development dependencies.
+Requirements: Node.js 24.14–24.x or 26.x for the embedded God’s Eye View companion. If its vendored `node_modules` folder is missing, install its dependencies once with `corepack pnpm --dir vendor/gods-eye-view install --frozen-lockfile`; then start the whole site from the repository root. Visitors do not install anything.
 
 ```powershell
 node server.js
@@ -13,7 +13,7 @@ node server.js
 Open <http://127.0.0.1:4173>. Run the unit tests with:
 
 ```powershell
-node --test
+node --test test/*.test.js
 ```
 
 Sign in with the provisioned local `Ben` account using the temporary password `adm1n`, then change it from Account settings. Passwords must be at least 4 characters for this private, low-risk personal app and are still salted and hashed; they are never stored in plaintext. Usernames, password hashes, sessions, and application data are stored in the ignored `data/` directory, and public registration is disabled. A fresh clone should set `BOOTSTRAP_PASSWORD_HASH` to a locally generated hash before first launch; the hash is intentionally not in this public repository.
@@ -29,6 +29,7 @@ Sign in with the provisioned local `Ben` account using the temporary password `a
 - Add and rate creators, topics, games, and keywords.
 - Personal and professional projects with lightweight todo lists for SaberDueler and GMCHE art class.
 - Responsive UI designed for a phone first, with a wider desktop layout.
+- A member/admin-only World panel embedding the genuine God’s Eye View app, including its side controls, data filters, and native POWER UP key dialog. Keys entered there are encrypted and scoped to the signed-in account. Provider usage can have separate charges; see [`docs/GODSIDE.md`](docs/GODSIDE.md) for local setup, Cloudflare support, and cost limits.
 - Tested Interest Engine module with explicit interfaces for future content scoring and feedback.
 
 ## Project map
@@ -48,6 +49,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/PRODUCT-SCOPE.md`]
 
 ## Free hosting
 
-GitHub remains the source-control repository and the `master` branch is connected directly to Cloudflare Pages. Cloudflare Pages serves the static frontend at <https://themulchgarden.pages.dev>, while a small Pages proxy forwards `/api/*` requests to the Cloudflare Worker and D1 database. This keeps browser requests same-origin and avoids unnecessary public services.
+GitHub remains the source-control repository and the `master` branch is connected to Cloudflare Pages. For the Pages build, use the checked-in Node version and run `pnpm --dir vendor/gods-eye-view install --frozen-lockfile && npm run build:godseye && npm run build:pages`; set the build output directory to `_site`. The generated `/godseye/` app is protected by a member-only Pages Function; its native key dialog saves to the encrypted per-user Cloudflare D1 vault. The Pages proxy forwards `/api/*` to the Cloudflare Worker and D1 database. Cloudflare's app bundle is not yet full feature parity with the upstream provider API routes; see [`docs/GODSIDE.md`](docs/GODSIDE.md).
+
+The local Node/Vite version has the upstream data-provider server. The Cloudflare build includes the browser app and member/key flows, but its full live-data API parity is not complete yet; some upstream data panels can be unavailable there. Pages Functions and D1 also have free-tier request/usage limits. Do not add a paid plan or a provider key without reviewing its own billing and quotas.
 
 The local Node MVC server is still used for development. Cloudflare stores production users, sessions, and application state in D1. Never commit `data/`, password hashes intended as secrets, API keys, or other production secrets. The old GitHub Pages workflow has been removed so GitHub Pages is no longer part of the production path.

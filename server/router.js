@@ -1,16 +1,36 @@
 function send(response, status, payload) { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(payload)); }
 async function readBody(request, limit) { let body = ''; for await (const chunk of request) { body += chunk; if (Buffer.byteLength(body) > limit) throw Object.assign(new Error('Request body too large.'), { status: 413 }); } return body ? JSON.parse(body) : {}; }
 
-export function createRouter({ auth, app, bodyLimit }) {
+export function createRouter({ auth, app, bodyLimit, godsideKeys, godsideView }) {
   return async function route(request, response) {
     const path = new URL(request.url || '/', 'http://localhost').pathname;
     try {
       if (!path.startsWith('/api/')) return false;
       const body = ['POST', 'PUT', 'PATCH'].includes(request.method) ? await readBody(request, bodyLimit) : {};
       if (request.method === 'GET' && path === '/api/auth/me') return send(response, 200, { user: await auth.current(request) });
+      if (request.method === 'GET' && path === '/api/auth/local-setup') return send(response, 200, await auth.localSetupStatus(request));
+      if (request.method === 'POST' && path === '/api/auth/local-setup') return send(response, 201, { user: await auth.setupLocalAdmin(body, request, response) });
       if (request.method === 'POST' && path === '/api/auth/login') return send(response, 200, { user: await auth.login(body, request, response) });
       if (request.method === 'POST' && path === '/api/auth/logout') return send(response, 200, await auth.logout(request, response));
       const user = await app.requireUser(request);
+      if (request.method === 'GET' && path === '/api/godside/app-config') {
+        if (!godsideView?.available) return send(response, 200, { available: false, message: godsideView?.message || 'The God’s Eye View companion is not available on this deployment.' });
+        let incoming;
+        try { incoming = new URL(request.url || '/', `${request.socket?.encrypted ? 'https' : 'http'}://${request.headers.host || 'localhost'}`); }
+        catch { return send(response, 400, { error: 'Invalid site address.' }); }
+        if (!['localhost', '127.0.0.1', '[::1]'].includes(incoming.hostname)) return send(response, 200, { available: false, message: 'The God’s Eye View companion is currently configured for local use only.' });
+        incoming.port = String(godsideView.port);
+        incoming.pathname = '/';
+        incoming.search = '?embed=1';
+        incoming.hash = '';
+        return send(response, 200, { available: true, url: incoming.href });
+      }
+      if (request.method === 'GET' && path === '/api/godside/keys') return send(response, 200, await godsideKeys.statuses(user));
+      if (request.method === 'PUT' && path === '/api/godside/keys') return send(response, 200, await godsideKeys.save(user, body));
+      if (request.method === 'GET' && path === '/api/godside/runtime') return send(response, 200, await godsideKeys.runtimeConfig(user));
+      const godsideKeyMatch = path.match(/^\/api\/godside\/keys\/([^/]+)$/);
+      if (request.method === 'PATCH' && godsideKeyMatch) return send(response, 200, await godsideKeys.setEnabled(user, decodeURIComponent(godsideKeyMatch[1]), body.enabled));
+      if (request.method === 'DELETE' && godsideKeyMatch) return send(response, 200, await godsideKeys.remove(user, decodeURIComponent(godsideKeyMatch[1])));
       if (request.method === 'PATCH' && path === '/api/auth/me') return send(response, 200, { user: await auth.update(body, user) });
       if (request.method === 'GET' && path === '/api/members') return send(response, 200, { members: await app.listMembers() });
       if (request.method === 'GET' && path === '/api/board/projects') return send(response, 200, { projects: await app.listBoardProjects(user) });

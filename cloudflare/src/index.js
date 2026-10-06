@@ -1,3 +1,6 @@
+import { decryptGodsideKey, encryptGodsideKey, godsideKeyStatuses, normalizeGodsideKey, validateGodsideProvider, GODSIDE_PROVIDERS } from '../../src/godside-crypto.js';
+import { encryptGodseyeSetupUpdates, godseyeSetupStatus } from '../../src/godside-setup.js';
+
 const SESSION_COOKIE = 'mg_session';
 const DEFAULT_SESSION_DAYS = 14;
 // Keep comfortably below Cloudflare Workers' 100,000-iteration PBKDF2 cap.
@@ -5,7 +8,9 @@ const PASSWORD_ITERATIONS = 50000;
 const PASSWORD_KEY_BITS = 256;
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_BODY_BYTES = 100000;
-const MAX_ACCOUNTS = 2;
+// One owner/admin plus up to three invited members matches the small private
+// audience this app is designed for without growing account surface area.
+const MAX_ACCOUNTS = 4;
 const CHAT_MAX_MESSAGE_LENGTH = 280;
 const CHAT_MAX_MESSAGES = 100;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -74,7 +79,7 @@ function corsHeaders(request, env) {
   const configured = String(env.FRONTEND_ORIGIN || '').trim();
   const origin = request.headers.get('Origin');
   const allowed = configured && origin === configured ? origin : '';
-  return allowed ? { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, Mcp-Protocol-Version', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS', Vary: 'Origin' } : {};
+  return allowed ? { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, Mcp-Protocol-Version', 'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS', Vary: 'Origin' } : {};
 }
 
 function withCors(response, request, env) {
@@ -155,6 +160,93 @@ async function currentUser(request, env) {
   if (!rawToken) return null;
   const tokenDigest = await digest(rawToken);
   return env.DB.prepare('SELECT users.id, users.username, users.role FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.digest = ? AND sessions.expires_at > ?').bind(tokenDigest, Date.now()).first();
+}
+
+function godsideEncryptionSecret(env) {
+  if (!env.GODSIDE_KEY_ENCRYPTION_SECRET) throw Object.assign(new Error('Secure key storage is not configured.'), { status: 503 });
+  return env.GODSIDE_KEY_ENCRYPTION_SECRET;
+}
+
+async function godsideKeyStatus(env, user) {
+  godsideEncryptionSecret(env);
+  const result = await env.DB.prepare('SELECT provider, envelope_json FROM godside_provider_keys WHERE user_id = ?').bind(user.id).all();
+  return json({ providers: godsideKeyStatuses(result.results || []) });
+}
+
+async function godseyePowerUpStatus(env, user) {
+  godsideEncryptionSecret(env);
+  const result = await env.DB.prepare('SELECT provider, envelope_json FROM godside_provider_keys WHERE user_id = ?').bind(user.id).all();
+  return json(godseyeSetupStatus(result.results || []));
+}
+
+async function saveGodseyePowerUpKeys(request, env, user) {
+  const secret = godsideEncryptionSecret(env);
+  const updates = await readJson(request);
+  const operations = await encryptGodseyeSetupUpdates(updates, secret, user.id);
+  const statements = operations.map((operation) => operation.envelope
+    ? env.DB.prepare(`INSERT INTO godside_provider_keys (user_id, provider, envelope_json, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, provider) DO UPDATE SET envelope_json = excluded.envelope_json, updated_at = excluded.updated_at`)
+      .bind(user.id, operation.provider, JSON.stringify(operation.envelope), new Date().toISOString())
+    : env.DB.prepare('DELETE FROM godside_provider_keys WHERE user_id = ? AND provider = ?')
+      .bind(user.id, operation.provider));
+  await env.DB.batch(statements);
+  const stored = await env.DB.prepare('SELECT provider, envelope_json FROM godside_provider_keys WHERE user_id = ?').bind(user.id).all();
+  return json({
+    ok: true,
+    saved: operations.map((operation) => operation.envVar),
+    status: godseyeSetupStatus(stored.results || []),
+  });
+}
+
+async function godsideRuntimeConfig(env, user) {
+  const secret = godsideEncryptionSecret(env);
+  const result = await env.DB.prepare('SELECT provider, envelope_json FROM godside_provider_keys WHERE user_id = ?').bind(user.id).all();
+  const keys = {};
+  for (const row of result.results || []) {
+    const provider = GODSIDE_PROVIDERS[row.provider];
+    if (provider?.exposure !== 'browser') continue;
+    let envelope;
+    try { envelope = JSON.parse(row.envelope_json); } catch { continue; }
+    if (envelope.enabled !== true) continue;
+    keys[row.provider] = await decryptGodsideKey(envelope, secret, user.id, row.provider);
+  }
+  return json({ keys });
+}
+
+async function saveGodsideKey(request, env, user) {
+  const secret = godsideEncryptionSecret(env);
+  const body = await readJson(request);
+  const provider = String(body?.provider || '');
+  if (!validateGodsideProvider(provider)) throw new Error('Unknown Godside provider.');
+  const value = normalizeGodsideKey(body?.key);
+  const encrypted = { ...await encryptGodsideKey(value, secret, user.id, provider), enabled: body?.enabled === true };
+  await env.DB.prepare(`INSERT INTO godside_provider_keys (user_id, provider, envelope_json, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, provider) DO UPDATE SET envelope_json = excluded.envelope_json, updated_at = excluded.updated_at`)
+    .bind(user.id, provider, JSON.stringify(encrypted), new Date().toISOString()).run();
+  return json({ ok: true, provider });
+}
+
+async function setGodsideKeyEnabled(request, env, user, provider) {
+  godsideEncryptionSecret(env);
+  if (!validateGodsideProvider(provider)) throw new Error('Unknown Godside provider.');
+  const body = await readJson(request);
+  if (typeof body?.enabled !== 'boolean') throw new Error('Choose whether to enable this provider.');
+  const stored = await env.DB.prepare('SELECT envelope_json FROM godside_provider_keys WHERE user_id = ? AND provider = ?').bind(user.id, provider).first();
+  if (!stored) throw Object.assign(new Error('That provider key is not saved.'), { status: 404 });
+  let envelope;
+  try { envelope = JSON.parse(stored.envelope_json); } catch { throw Object.assign(new Error('Stored provider key is invalid.'), { status: 500 }); }
+  envelope.enabled = body.enabled;
+  await env.DB.prepare('UPDATE godside_provider_keys SET envelope_json = ?, updated_at = ? WHERE user_id = ? AND provider = ?').bind(JSON.stringify(envelope), new Date().toISOString(), user.id, provider).run();
+  return json({ ok: true, provider, enabled: body.enabled });
+}
+
+async function deleteGodsideKey(env, user, provider) {
+  godsideEncryptionSecret(env);
+  if (!validateGodsideProvider(provider)) throw new Error('Unknown Godside provider.');
+  await env.DB.prepare('DELETE FROM godside_provider_keys WHERE user_id = ? AND provider = ?').bind(user.id, provider).run();
+  return json({ ok: true, provider });
 }
 
 async function readJson(request) {
@@ -555,6 +647,15 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': expiredCookie() });
   }
   if (request.method === 'PATCH' && url.pathname === '/api/auth/me') return updateAccount(request, env, user);
+  if (request.method === 'GET' && url.pathname === '/api/godside/app-config') return json({ available: true, url: '/godseye/?embed=1' });
+  if (request.method === 'GET' && url.pathname === '/api/setup/status') return godseyePowerUpStatus(env, user);
+  if (request.method === 'POST' && url.pathname === '/api/setup/keys') return saveGodseyePowerUpKeys(request, env, user);
+  if (request.method === 'GET' && url.pathname === '/api/godside/keys') return godsideKeyStatus(env, user);
+  if (request.method === 'GET' && url.pathname === '/api/godside/runtime') return godsideRuntimeConfig(env, user);
+  if (request.method === 'PUT' && url.pathname === '/api/godside/keys') return saveGodsideKey(request, env, user);
+  const godsideKeyMatch = url.pathname.match(/^\/api\/godside\/keys\/([^/]+)$/);
+  if (request.method === 'PATCH' && godsideKeyMatch) return setGodsideKeyEnabled(request, env, user, decodeURIComponent(godsideKeyMatch[1]));
+  if (request.method === 'DELETE' && godsideKeyMatch) return deleteGodsideKey(env, user, decodeURIComponent(godsideKeyMatch[1]));
   if (request.method === 'GET' && url.pathname === '/api/members') return members(env);
   if (request.method === 'GET' && url.pathname === '/api/board/projects') return boardProjects(env, user);
   if (request.method === 'GET' && url.pathname === '/api/board/social') return boardSocial(env, user);

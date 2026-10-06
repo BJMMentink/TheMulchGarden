@@ -3,6 +3,12 @@ import { createSessionToken, expiredSessionCookie, hashPassword, parseCookies, s
 const publicUser = (user) => ({ id: user.id, username: user.username, role: user.role || 'user' });
 
 export function createAuthController(repository, config) {
+  let localSetupInProgress = false;
+
+  function isLocalRequest(request) {
+    return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket?.remoteAddress);
+  }
+
   async function startSession(user, response) {
     const token = createSessionToken();
     await repository.createSession(user.id, tokenDigest(token), Date.now() + config.sessionDays * 24 * 60 * 60 * 1000);
@@ -29,6 +35,26 @@ export function createAuthController(repository, config) {
       return sessionUser;
     },
     async register() { throw Object.assign(new Error('Account creation is disabled.'), { status: 403 }); },
+    async localSetupStatus(request) {
+      if (config.secureCookies || !isLocalRequest(request)) return { available: false };
+      return { available: (await repository.countUsers()) === 0 };
+    },
+    async setupLocalAdmin(body, request, response) {
+      if (config.secureCookies || !isLocalRequest(request)) throw Object.assign(new Error('Local account setup is unavailable.'), { status: 404 });
+      if (localSetupInProgress) throw Object.assign(new Error('Local setup is already in progress.'), { status: 409 });
+      localSetupInProgress = true;
+      try {
+        if ((await repository.countUsers()) !== 0) throw Object.assign(new Error('Local setup is already complete.'), { status: 409 });
+        const username = String(body.username || '').trim();
+        if (!/^[A-Za-z0-9_-]{3,32}$/.test(username)) throw new Error('Username must be 3–32 letters, numbers, underscores, or hyphens.');
+        const password = String(body.password || '');
+        if (password.length < 4 || password.length > 200) throw new Error('Password must be 4–200 characters.');
+        const user = await repository.createUser({ username, passwordHash: await hashPassword(password), role: 'admin' });
+        return startSession(user, response);
+      } finally {
+        localSetupInProgress = false;
+      }
+    },
     async login(body, request, response) {
       const user = await repository.findUserByUsername(String(body.username || '').trim());
       if (!user || !(await verifyPassword(body.password, user.passwordHash))) throw new Error('Username or password is incorrect.');

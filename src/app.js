@@ -7,6 +7,7 @@ import { summarizePreferences } from './profile-summary.js';
 import { createTodo, filterTodos, normalizeTags, normalizeTodo, TODO_ASSIGNMENT_EVERYONE } from './todo-engine.js';
 import { boardSocialAction, createSupportRequest, getCurrentUser, loadBoardProjects, loadBoardSocial, loadChatMessages, loadDailyWordle, loadMembers, loadState, loadSupportRequests, login, logout, removeBoardProject, saveState, sendChatMessage, updateAccount, updateSupportRequest } from './storage.js';
 import { cycleAdminGroupIndex, findAdminGroupIndex, resolveAdminGroupView } from './admin-navigation.js';
+import { activateGodsidePanel, renderGodsidePanel } from './godside.js';
 
 let state;
 let currentUser;
@@ -21,7 +22,6 @@ let selectedSection = APP_CONFIG.defaultSection;
 let activeGame = null;
 let guestMode = false;
 let authDarkMode = true;
-let authLoginOpen = false;
 let authKeyHandler;
 let scrollIdleTimer;
 let scrollIndicatorBound = false;
@@ -58,7 +58,6 @@ let adminSessionUser = null;
 let adminPreviewMode = 'admin';
 let adminNavGroupIndex = 0;
 let adminNavGroupInitialized = false;
-let adminNavCycleDirection = 0;
 let brandExpanded = false;
 let brandAnimationTimer;
 const root = document.querySelector('#app');
@@ -73,10 +72,9 @@ function switchAdminPreview(mode) {
   if (!adminSessionUser || !['admin', 'member', 'guest'].includes(mode)) return;
   const currentView = root.dataset.minimalView || 'landing';
   const blockedForGuest = !['landing', 'portfolio', 'about'].includes(currentView);
-  const blockedForMember = !['landing', 'portfolio', 'about', 'requests'].includes(currentView);
+  const blockedForMember = !['landing', 'portfolio', 'about', 'requests', 'godside'].includes(currentView);
   adminPreviewMode = mode;
   adminNavGroupInitialized = false;
-  adminNavCycleDirection = 0;
   guestMode = mode === 'guest';
   currentUser = { ...adminSessionUser, role: mode === 'admin' ? 'admin' : 'user' };
   if (mode !== 'admin' && boardMode === 'requests') boardMode = 'feed';
@@ -86,18 +84,20 @@ function switchAdminPreview(mode) {
 }
 
 function toggleBrandLayout() {
-  brandExpanded = !brandExpanded;
+  const opening = !brandExpanded;
+  brandExpanded = opening;
   if (root.dataset.minimalView === 'board') boardNavExpanded = brandExpanded;
   root.dataset.brandExpanded = String(brandExpanded);
   root.dataset.boardNavExpanded = root.dataset.minimalView === 'board' ? String(boardNavExpanded) : 'false';
   const row = root.querySelector('.editorial-nav-row');
   const brand = root.querySelector('[data-brand-toggle]');
   brand?.setAttribute('aria-expanded', String(brandExpanded));
-  row?.classList.remove('brand-layout-animating');
+  row?.classList.remove('brand-layout-animating', 'brand-layout-closing');
   window.clearTimeout(brandAnimationTimer);
   window.requestAnimationFrame(() => {
+    if (!opening) row?.classList.add('brand-layout-closing');
     row?.classList.add('brand-layout-animating');
-    brandAnimationTimer = window.setTimeout(() => row?.classList.remove('brand-layout-animating'), 720);
+    brandAnimationTimer = window.setTimeout(() => row?.classList.remove('brand-layout-animating', 'brand-layout-closing'), 720);
   });
 }
 
@@ -1007,17 +1007,19 @@ function previewAvatar(file) {
   image.append(preview);
 }
 
-const MINIMAL_VIEWS = ['landing', 'portfolio', 'about', 'board', 'requests', 'mcp', 'account'];
+const MINIMAL_VIEWS = ['landing', 'portfolio', 'about', 'board', 'requests', 'mcp', 'account', 'godside'];
 const ADMIN_PAGE_GROUPS = Object.freeze([
   Object.freeze({ id: 'home', label: 'Home', views: Object.freeze(['landing', 'portfolio', 'about']) }),
   Object.freeze({ id: 'work', label: 'Work', views: Object.freeze(['board', 'requests', 'mcp']) }),
+  Object.freeze({ id: 'world', label: 'World', views: Object.freeze(['godside']) }),
 ]);
-const MINIMAL_VIEW_LABELS = Object.freeze({ landing: 'Home', portfolio: 'Portfolio', board: 'Board', requests: 'Requests', about: 'About', account: 'Account', mcp: 'MCP' });
+const MINIMAL_VIEW_LABELS = Object.freeze({ landing: 'Home', portfolio: 'Portfolio', board: 'Board', requests: 'Requests', about: 'About', account: 'Account', mcp: 'MCP', godside: 'God’s Eye' });
 const MINIMAL_VIEW_STORAGE_PREFIX = 'mg_last_minimal_view:';
 const MINIMAL_ACCOUNT_PAGE_STORAGE_PREFIX = 'mg_last_minimal_account_page:';
 const MINIMAL_ADMIN_GROUP_STORAGE_PREFIX = 'mg_last_admin_group_view:';
 let minimalGlobalEventsBound = false;
 let minimalTrackTransitionCleanup = null;
+let primaryNavLayoutAnimation = null;
 
 function minimalViewIndex(view) { return Math.max(0, MINIMAL_VIEWS.indexOf(view)); }
 
@@ -1039,9 +1041,9 @@ function rememberedAdminGroupView(group) {
   const resolve = (storedView) => resolveAdminGroupView(group, storedView, MINIMAL_VIEWS);
   try {
     const storedView = localStorage.getItem(minimalStorageKey(`${MINIMAL_ADMIN_GROUP_STORAGE_PREFIX}${group.id}:`));
-    return resolve(storedView) || 'landing';
+    return resolve(storedView) || group.views[0] || 'landing';
   } catch {
-    return resolve(null) || 'landing';
+    return resolve(null) || group.views[0] || 'landing';
   }
 }
 
@@ -1080,8 +1082,12 @@ function updateMinimalNavigation() {
   const activeSelector = workspaceViews.includes(view) && hasWorkspaceMenu ? '[data-workspace-summary]' : view === 'account' ? '[data-account-summary]' : view === 'landing' ? '[data-minimal-home]' : `[data-minimal-${view}]`;
   const activeLink = nav?.querySelector(activeSelector);
   if (nav && activeLink) {
-    nav.style.setProperty('--nav-indicator-left', `${activeLink.closest('.editorial-nav-menu')?.offsetLeft ?? activeLink.offsetLeft}px`);
-    nav.style.setProperty('--nav-indicator-width', `${activeLink.offsetWidth}px`);
+    const indicatorTarget = activeLink.closest('.editorial-nav-menu') || activeLink;
+    const navRect = nav.getBoundingClientRect();
+    const targetRect = indicatorTarget.getBoundingClientRect();
+    const targetLeft = targetRect.left - navRect.left - nav.clientLeft + nav.scrollLeft;
+    nav.style.setProperty('--nav-indicator-left', `${targetLeft}px`);
+    nav.style.setProperty('--nav-indicator-width', `${targetRect.width}px`);
   }
   root.querySelectorAll('[data-minimal-view-link]').forEach((link) => link.classList.toggle('is-active', link.dataset.minimalViewLink === view));
   root.querySelector('[data-workspace-summary]')?.classList.toggle('is-active', workspaceViews.includes(view));
@@ -1090,6 +1096,34 @@ function updateMinimalNavigation() {
   root.querySelector('[data-admin-group-label]')?.replaceChildren(document.createTextNode(ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'));
   root.querySelector('[data-admin-group-prev]')?.setAttribute('aria-label', `Show previous admin section from ${ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'}`);
   root.querySelector('[data-admin-group-next]')?.setAttribute('aria-label', `Show next admin section from ${ADMIN_PAGE_GROUPS[adminNavGroupIndex]?.label || 'Home'}`);
+}
+
+function animatePrimaryNavigationToLayout(previousLeft) {
+  primaryNavLayoutAnimation?.cancel();
+  primaryNavLayoutAnimation = null;
+  const nav = root.querySelector('.editorial-nav-center nav');
+  if (!nav || !Number.isFinite(previousLeft) || typeof nav.animate !== 'function') return;
+
+  const targetLeft = nav.getBoundingClientRect().left;
+  const startOffset = previousLeft - targetLeft;
+  if (Math.abs(startOffset) < 0.5) return;
+
+  const direction = Math.sign(startOffset);
+  const bounce = Math.min(10, Math.max(2.5, Math.abs(startOffset) * 0.14));
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const keyframes = prefersReducedMotion
+    ? [{ transform: `translateX(${startOffset}px)` }, { transform: 'translateX(0)' }]
+    : [
+      { transform: `translateX(${startOffset}px)`, opacity: 0.65, offset: 0, easing: 'cubic-bezier(0.2, 0.75, 0.3, 1)' },
+      { transform: `translateX(${-direction * bounce}px)`, opacity: 1, offset: 0.76, easing: 'cubic-bezier(0.34, 1.45, 0.64, 1)' },
+      { transform: `translateX(${direction * bounce * 0.22}px)`, offset: 0.91, easing: 'cubic-bezier(0.33, 0.85, 0.4, 1)' },
+      { transform: 'translateX(0)', offset: 1 },
+    ];
+  const animation = nav.animate(keyframes, { duration: prefersReducedMotion ? 180 : 640, fill: 'none', easing: 'linear' });
+  primaryNavLayoutAnimation = animation;
+  animation.onfinish = animation.oncancel = () => {
+    if (primaryNavLayoutAnimation === animation) primaryNavLayoutAnimation = null;
+  };
 }
 
 function adminGroupIndexForView(view) {
@@ -1102,7 +1136,6 @@ function cycleAdminGroup(direction) {
   const nextGroup = ADMIN_PAGE_GROUPS[nextGroupIndex];
   const view = rememberedAdminGroupView(nextGroup);
   if (!view) return;
-  adminNavCycleDirection = direction < 0 ? -1 : 1;
   adminNavGroupIndex = nextGroupIndex;
   adminNavGroupInitialized = true;
   renderMinimal(view, '', view === 'account' ? rememberedMinimalAccountPage() : 'profile');
@@ -1111,12 +1144,7 @@ function cycleAdminGroup(direction) {
 function openAdminPage(view, page = '') {
   if (!currentUser || currentUser.role !== 'admin' || guestMode || !MINIMAL_VIEWS.includes(view)) return;
   const nextGroupIndex = adminGroupIndexForView(view);
-  if (nextGroupIndex >= 0) {
-    adminNavCycleDirection = nextGroupIndex === adminNavGroupIndex ? 0 : nextGroupIndex > adminNavGroupIndex ? 1 : -1;
-    adminNavGroupIndex = nextGroupIndex;
-  } else {
-    adminNavCycleDirection = 0;
-  }
+  if (nextGroupIndex >= 0) adminNavGroupIndex = nextGroupIndex;
   adminNavGroupInitialized = true;
   renderMinimal(view, '', view === 'account' ? page || rememberedMinimalAccountPage() : 'profile');
 }
@@ -1132,10 +1160,14 @@ function adminPageRail(view) {
   return `<div class="admin-group-switcher" aria-label="Admin page sections"><button type="button" class="admin-group-arrow" data-admin-group-prev aria-label="Show previous admin section">←</button><details class="admin-group-menu"><summary><span class="admin-group-menu-label" data-admin-group-label>${group.label}</span><small>${adminNavGroupIndex + 1} / ${ADMIN_PAGE_GROUPS.length}</small></summary><nav class="admin-group-popover" aria-label="${group.label} pages"><span class="editorial-popover-label">${group.label}</span>${group.views.map((page) => `<button type="button" class="admin-group-page${page === view ? ' is-active' : ''}" data-admin-page="${page}">${MINIMAL_VIEW_LABELS[page]}</button>`).join('')}</nav></details><button type="button" class="admin-group-arrow" data-admin-group-next aria-label="Show next admin section">→</button></div>`;
 }
 
+function adminPrimaryNavigationLinks(group) {
+  const pageAttributes = { landing: 'data-minimal-home', portfolio: 'data-minimal-portfolio', about: 'data-minimal-about', board: 'data-minimal-board', requests: 'data-minimal-requests', mcp: 'data-minimal-mcp', godside: 'data-minimal-godside' };
+  return group.views.map((pageName) => `<button class="editorial-nav-link" ${pageAttributes[pageName]} data-minimal-view-link="${pageName}">${MINIMAL_VIEW_LABELS[pageName]}</button>`).join('');
+}
+
 function adminPrimaryNavigation() {
   const group = ADMIN_PAGE_GROUPS[adminNavGroupIndex] || ADMIN_PAGE_GROUPS[0];
-  const pageAttributes = { landing: 'data-minimal-home', portfolio: 'data-minimal-portfolio', about: 'data-minimal-about', board: 'data-minimal-board', requests: 'data-minimal-requests', mcp: 'data-minimal-mcp' };
-  return `<div class="editorial-nav-center"><nav aria-label="${group.label} navigation">${group.views.map((pageName) => `<button class="editorial-nav-link" ${pageAttributes[pageName]} data-minimal-view-link="${pageName}">${MINIMAL_VIEW_LABELS[pageName]}</button>`).join('')}</nav></div>`;
+  return `<div class="editorial-nav-center" data-admin-group-index="${adminNavGroupIndex}"><nav aria-label="${group.label} navigation">${adminPrimaryNavigationLinks(group)}</nav></div>`;
 }
 
 function updateMinimalViewportHeight() {
@@ -1423,6 +1455,7 @@ function bindMinimalEvents(view, page = 'profile') {
       else if (target.hasAttribute('data-minimal-requests')) nextView = 'requests';
       else if (target.hasAttribute('data-minimal-mcp')) nextView = 'mcp';
       else if (target.hasAttribute('data-minimal-account')) nextView = 'account';
+      else if (target.hasAttribute('data-minimal-godside')) nextView = 'godside';
       else if (target.hasAttribute('data-minimal-account-page')) { nextView = 'account'; nextPage = target.dataset.minimalAccountPage; }
       if (!nextView) return;
       event.preventDefault(); event.stopPropagation();
@@ -1511,6 +1544,7 @@ function bindSupportReviewEvents() {
 }
 
 function renderMinimal(view = rememberedMinimalView(), message = '', page = rememberedMinimalAccountPage()) {
+  const previousPrimaryNavLeft = root.querySelector('.editorial-nav-center nav')?.getBoundingClientRect().left ?? null;
   if (minimalTrackTransitionCleanup) {
     minimalTrackTransitionCleanup();
     minimalTrackTransitionCleanup = null;
@@ -1524,7 +1558,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     if (['portfolio', 'about'].includes(view)) url.searchParams.set('view', view);
     else url.searchParams.delete('view');
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-  } else if (!isAdmin && !['landing', 'portfolio', 'about', 'requests'].includes(view)) {
+  } else if (!isAdmin && !['landing', 'portfolio', 'about', 'requests', 'godside'].includes(view)) {
     view = 'landing';
     page = 'profile';
     const url = new URL(window.location.href);
@@ -1549,8 +1583,8 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   root.dataset.boardNavExpanded = view === 'board' ? String(boardNavExpanded) : 'false';
   document.documentElement.classList.toggle('is-away-from-top', view !== 'landing' || firstLandingRender || returningToLanding);
   if (!shell) {
-    const guestNav = '<nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav>';
-    const memberNav = '<nav aria-label="Member navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-requests data-minimal-view-link="requests">Requests</button></nav>';
+    const guestNav = '<div class="editorial-nav-center"><nav aria-label="Guest navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button></nav></div>';
+    const memberNav = '<div class="editorial-nav-center"><nav aria-label="Member navigation"><button class="editorial-nav-link" data-minimal-home data-minimal-view-link="landing">Home</button><button class="editorial-nav-link" data-minimal-portfolio data-minimal-view-link="portfolio">Portfolio</button><button class="editorial-nav-link" data-minimal-about data-minimal-view-link="about">About</button><button class="editorial-nav-link" data-minimal-requests data-minimal-view-link="requests">Requests</button><button class="editorial-nav-link" data-minimal-godside data-minimal-view-link="godside">God’s Eye</button></nav></div>';
     const adminGroupControl = isAdmin && !guestMode ? adminPageRail(view) : '';
     const adminNav = isAdmin && !guestMode ? adminPrimaryNavigation() : '';
     const nav = guestMode ? guestNav : isAdmin ? adminNav : memberNav;
@@ -1560,7 +1594,7 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const memberExitControl = `<button class="editorial-nav-exit" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>`;
     const guestExitControl = `<button class="editorial-nav-exit" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button>`;
     const navActions = guestMode ? `<div class="editorial-nav-actions">${guestExitControl}</div>` : isAdmin ? `<div class="editorial-nav-actions">${adminGroupControl}${adminAccountMenu}</div>` : `<div class="editorial-nav-actions">${memberExitControl}</div>`;
-    const mobilePrivateNav = guestMode ? '' : isAdmin ? '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-mcp>MCP</button>' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button>';
+    const mobilePrivateNav = guestMode ? '' : isAdmin ? '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-account>Account</button><button class="editorial-mobile-link" data-minimal-mcp>MCP</button><button class="editorial-mobile-link" data-minimal-godside>God’s Eye</button>' : '<button class="editorial-mobile-link" data-minimal-requests>Requests</button><button class="editorial-mobile-link" data-minimal-godside>God’s Eye</button>';
     const mobileBoardNav = isAdmin ? '<button class="editorial-mobile-link" data-minimal-board>Board</button>' : '';
     const mobileNav = `<div class="editorial-mobile-panel" id="mobile-nav" data-mobile-panel hidden><button class="editorial-mobile-link" data-minimal-home>Home</button><button class="editorial-mobile-link" data-minimal-portfolio>Portfolio</button>${mobileBoardNav}<button class="editorial-mobile-link" data-minimal-about>About</button>${mobilePrivateNav}<button class="editorial-mobile-cta" data-minimal-logout>${ctaLabel} <span class="editorial-arrow">↗</span></button></div>`;
     const brandLabel = brandExpanded ? 'Collapse Mulch Garden navigation' : 'Expand Mulch Garden navigation';
@@ -1570,8 +1604,11 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const boardSlide = `<section class="minimal-slide" data-minimal-slide="board">${isAdmin ? boardPage() : ''}</section>`;
     const aboutSlide = `<section class="minimal-slide" data-minimal-slide="about">${aboutPage()}</section>`;
     const requestsSlide = `<section class="minimal-slide" data-minimal-slide="requests">${guestMode ? '' : requestsPage()}</section>`;
-    const privateSlides = isAdmin ? `<section class="minimal-slide" data-minimal-slide="mcp">${mcpPage()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section>` : '';
-    root.innerHTML = `${header}${adminPreviewControl()}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${aboutSlide}${boardSlide}${requestsSlide}${privateSlides}</div></div>`;
+    const godsideSlide = guestMode ? '' : `<section class="minimal-slide" data-minimal-slide="godside">${renderGodsidePanel()}</section>`;
+    const privateSlides = isAdmin
+      ? `<section class="minimal-slide" data-minimal-slide="mcp">${mcpPage()}</section><section class="minimal-slide" data-minimal-slide="account"><main class="minimal-page">${accountPage(page)}</main></section>`
+      : '<section class="minimal-slide" data-minimal-slide="mcp" aria-hidden="true"></section><section class="minimal-slide" data-minimal-slide="account" aria-hidden="true"></section>';
+    root.innerHTML = `${header}${adminPreviewControl()}<div class="minimal-viewport"><div class="minimal-shell minimal-track" style="--minimal-view-index: 0"><section class="minimal-slide" data-minimal-slide="landing">${minimalLanding()}</section>${portfolioSlide}${aboutSlide}${boardSlide}${requestsSlide}${privateSlides}${godsideSlide}</div></div>`;
     root.dataset.minimalAccountPage = page;
     bindMinimalEvents(view, page);
     if (view === 'board') { queueBoardSocial(); if (boardMode === 'library') { queueBoardProfileLoads(); queueBoardSharedProjects(); } else if (boardMode === 'requests') refreshSupportRequests().catch(() => {}); }
@@ -1590,6 +1627,9 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     const mcpSlide = root.querySelector('[data-minimal-slide="mcp"]');
     if (mcpSlide) mcpSlide.innerHTML = mcpPage();
     bindMcpEvents();
+  } else if (view === 'godside') {
+    const godsideSlide = root.querySelector('[data-minimal-slide="godside"]');
+    if (godsideSlide && !godsideSlide.querySelector('[data-godside-globe]')) godsideSlide.innerHTML = renderGodsidePanel();
   } else if (view === 'account' && (root.dataset.minimalAccountPage !== page || message)) {
     accountSlide.innerHTML = `<main class="minimal-page">${accountPage(page, message)}</main>`;
     root.dataset.minimalAccountPage = page;
@@ -1602,16 +1642,21 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
   else if (existingRail && !rail) existingRail.remove();
   const existingPrimaryNav = root.querySelector('.editorial-nav-center');
   if (existingPrimaryNav && currentUser?.role === 'admin' && !guestMode) {
-    existingPrimaryNav.outerHTML = adminPrimaryNavigation();
-    if (adminNavCycleDirection) {
-      root.querySelector('.editorial-nav-center')?.classList.add(adminNavCycleDirection > 0 ? 'page-switch-forward' : 'page-switch-backward');
+    if (existingPrimaryNav.dataset.adminGroupIndex !== String(adminNavGroupIndex)) {
+      const group = ADMIN_PAGE_GROUPS[adminNavGroupIndex] || ADMIN_PAGE_GROUPS[0];
+      const nav = existingPrimaryNav.querySelector('nav');
+      if (nav) {
+        nav.setAttribute('aria-label', `${group.label} navigation`);
+        nav.innerHTML = adminPrimaryNavigationLinks(group);
+      }
+      existingPrimaryNav.dataset.adminGroupIndex = String(adminNavGroupIndex);
     }
-    adminNavCycleDirection = 0;
   }
   const track = root.querySelector('.minimal-track');
   if (track) track.style.setProperty('--minimal-view-offset', `-${minimalViewIndex(view) * (100 / MINIMAL_VIEWS.length)}%`);
   resetMinimalScrollPosition();
   updateMinimalNavigation();
+  animatePrimaryNavigationToLayout(previousPrimaryNavLeft);
   const activateLandingView = () => {
     if (root.dataset.minimalView !== view) return;
     if (view === 'landing' && !firstLandingRender && !returningToLanding) {
@@ -1641,14 +1686,14 @@ function renderMinimal(view = rememberedMinimalView(), message = '', page = reme
     track.addEventListener('transitionend', onTrackTransitionEnd);
   } else requestAnimationFrame(() => requestAnimationFrame(activateLandingView));
   if (view === 'requests') queueBoardSharedProjects();
+  if (view === 'godside') activateGodsidePanel(root.querySelector('[data-minimal-slide="godside"]'), currentUser?.role);
 }
 
-function renderAuth(message = '', loginOpen = false) {
+function renderAuth(message = '') {
   if (minimalTrackTransitionCleanup) {
     minimalTrackTransitionCleanup();
     minimalTrackTransitionCleanup = null;
   }
-  authLoginOpen = loginOpen;
   heroIntroConsumed = false;
   heroIntroResetting = false;
   heroIntroReady = false;
@@ -1657,12 +1702,11 @@ function renderAuth(message = '', loginOpen = false) {
   document.documentElement.classList.remove('is-away-from-top', 'is-scrolling');
   minimalGlobalEventsBound = false;
   if (authKeyHandler) document.removeEventListener('keydown', authKeyHandler);
-  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card"><div class="auth-options"><button class="auth-option auth-option-login" type="button" data-action="open-login" aria-expanded="${loginOpen}" aria-controls="auth-login-panel">Login <span class="auth-option-arrow" aria-hidden="true">↓</span></button><div class="auth-login-panel${loginOpen ? ' is-open' : ''}" id="auth-login-panel" aria-hidden="${!loginOpen}"><div>${message ? `<p class="form-error">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username" ${loginOpen ? '' : 'disabled'}></label><label>Password<input type="password" name="password" required autocomplete="current-password" ${loginOpen ? '' : 'disabled'}></label><button class="button" type="submit" ${loginOpen ? '' : 'disabled'}>Login</button></form></div></div><button class="auth-option auth-option-guest" type="button" data-action="guest">Enter as guest <span aria-hidden="true">↗</span></button></div></section></main>`;
-  authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message, loginOpen); } };
-  document.querySelector('[data-action="open-login"]').addEventListener('click', () => { renderAuth('', true); document.querySelector('#auth-form input[name="username"]')?.focus(); });
+  root.innerHTML = `<main class="auth-shell${authDarkMode ? '' : ' is-light'}"><section class="auth-card">${message ? `<p class="form-error" role="alert">${escapeHtml(message)}</p>` : ''}<form id="auth-form"><label>Username<input name="username" required autocomplete="username"></label><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button class="button" type="submit">Login</button></form><button class="auth-option auth-option-guest" type="button" data-action="guest">Enter as guest</button></section></main>`;
+  authKeyHandler = (event) => { const tag = event.target?.tagName?.toLowerCase(); if (event.key.toLocaleLowerCase() === 'd' && !event.ctrlKey && !event.metaKey && !event.altKey && !['input', 'textarea', 'select'].includes(tag)) { authDarkMode = !authDarkMode; renderAuth(message); } };
   document.querySelector('[data-action="guest"]').addEventListener('click', () => { guestMode = true; currentUser = null; state = null; renderMinimal('landing'); });
   document.addEventListener('keydown', authKeyHandler);
-  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); adminSessionUser = currentUser.role === 'admin' ? { ...currentUser } : null; adminPreviewMode = 'admin'; guestMode = false; state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message, true); } });
+  document.querySelector('#auth-form').addEventListener('submit', async (event) => { event.preventDefault(); const values = new FormData(event.currentTarget); try { currentUser = await login(values.get('username'), values.get('password')); adminSessionUser = currentUser.role === 'admin' ? { ...currentUser } : null; adminPreviewMode = 'admin'; guestMode = false; state = await loadState(); renderMinimal(); } catch (error) { renderAuth(error.message); } });
 }
 
 function renderAccountSettings(message = '') {

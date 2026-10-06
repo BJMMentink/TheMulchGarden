@@ -33,6 +33,12 @@ The browser can point at the local Node API or the Cloudflare Pages same-origin 
 - `POST /api/chat/messages`
 - `GET /api/state`
 - `PUT /api/state`
+- `GET /api/godside/keys`
+- `PUT /api/godside/keys`
+- `GET /api/godside/runtime` (enabled browser keys for the authenticated owner only)
+- `PATCH /api/godside/keys/:provider` (enable/disable that user's saved key)
+- `DELETE /api/godside/keys/:provider`
+- God’s Eye native setup routes (`GET /api/setup/status`, `POST /api/setup/keys`) on the authenticated local companion and Cloudflare Worker.
 
 Cloudflare Pages provides the free production frontend and same-origin proxy. Cloudflare Worker + D1 provides the free production API and database. GitHub remains the source repository and deploy trigger; GitHub Pages is not used. The Worker uses Web Crypto PBKDF2 and bearer-capable sessions. See `cloudflare/README.md` for the one-time dashboard setup.
 
@@ -79,7 +85,11 @@ Future integrations should adapt external data into a stable content object (`id
 - Users have a backend-enforced `user` or `admin` role. Admin mode is a presentation mode available only to administrators; switching to user mode hides admin navigation but does not weaken backend authorization.
 - Session cookies are `HttpOnly` and `SameSite=Lax`; production enables `Secure` cookies.
 - User data is kept in per-user files under ignored `data/` and writes use a temporary file plus rename.
+- God’s Eye View is the upstream application. Locally it runs in a loopback-only Vite companion; on Cloudflare Pages its static bundle is served from `/godseye/` behind a member/admin gate. The document and API entry points independently require the signed-in Mulch Garden session, and local startup clears global provider-key environment variables.
+- Provider keys are encrypted by the backend with AES-256-GCM before persistence. Associated data binds ciphertext to the user and provider; the production encryption secret stays outside D1. Status endpoints return flags only. Google/Cesium are released only to the owning user's browser; OpenAI stays server-side; other local provider calls use an account-scoped request context. AISStream's upstream socket is not yet isolated per account, so its key is not used by the integrated local feed. Cloudflare currently has the static app and encrypted-key routes, but not the upstream live-data API runtime.
 - A public deployment still needs HTTPS, rate limiting, backups, secret management, monitoring, and a database designed for concurrent writes.
+
+See [`GODSIDE.md`](GODSIDE.md) for the integration's access, key-management, content-provider, and deployment details.
 
 ## Future seams
 

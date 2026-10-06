@@ -4,7 +4,7 @@ import { BOOTSTRAP_ACCOUNT } from '../bootstrap.js';
 import { JsonStore } from '../lib/json-store.js';
 
 export class Repository {
-  constructor(directory) { this.users = new JsonStore(directory); this.sessions = new JsonStore(directory); this.userData = new JsonStore(directory); this.chat = new JsonStore(directory); }
+  constructor(directory) { this.users = new JsonStore(directory); this.sessions = new JsonStore(directory); this.userData = new JsonStore(directory); this.chat = new JsonStore(directory); this.godsideKeys = new JsonStore(directory); }
   async ensureBootstrapAccount() {
     const users = await this.users.read('users', []);
     const bootstrap = users.find((user) => user.username?.toLowerCase() === BOOTSTRAP_ACCOUNT.username.toLowerCase());
@@ -31,6 +31,15 @@ export class Repository {
   }
   async getState(userId) { const stored = await this.userData.read(`user-${userId}`, createInitialState()); return { ...createInitialState(), ...stored, memories: Array.isArray(stored.memories) ? stored.memories : [] }; }
   async saveState(userId, state) { await this.userData.write(`user-${userId}`, state); return state; }
+  async listGodsideKeys(userId) { const stored = await this.godsideKeys.read(`godside-keys-${userId}`, {}); return Object.entries(stored).map(([provider, envelope]) => ({ provider, envelope })); }
+  async saveGodsideKey(userId, provider, envelope) { const stored = await this.godsideKeys.read(`godside-keys-${userId}`, {}); stored[provider] = envelope; await this.godsideKeys.write(`godside-keys-${userId}`, stored); }
+  async setGodsideKeyEnabled(userId, provider, enabled) {
+    const stored = await this.godsideKeys.read(`godside-keys-${userId}`, {});
+    if (!stored[provider]) throw Object.assign(new Error('That provider key is not saved.'), { status: 404 });
+    stored[provider] = { ...stored[provider], enabled: Boolean(enabled) };
+    await this.godsideKeys.write(`godside-keys-${userId}`, stored);
+  }
+  async deleteGodsideKey(userId, provider) { const stored = await this.godsideKeys.read(`godside-keys-${userId}`, {}); delete stored[provider]; await this.godsideKeys.write(`godside-keys-${userId}`, stored); }
   async listBoardProjects(user) {
     const users = (await this.users.read('users', [])).filter((item) => item.username);
     const projects = [];
