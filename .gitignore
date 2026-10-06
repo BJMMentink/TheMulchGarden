@@ -2,7 +2,7 @@ node_modules/
 .pnpm-store/
 public/godseye/
 _site/
-data/
+/data/
 .DS_Store
 Thumbs.db
 *.log
